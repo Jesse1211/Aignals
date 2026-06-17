@@ -11,13 +11,15 @@ concurrency:
 
 jobs:
   test:
-    runs-on: macos-14
-    name: test (Xcode 15.4)
+    runs-on: macos-15
+    name: test
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+      - name: Select Xcode (latest stable)
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: 'latest-stable'
 
       - name: Print toolchain versions
         run: |
@@ -31,9 +33,9 @@ jobs:
           path: |
             .build
             ~/Library/Caches/org.swift.swiftpm
-          key: spm-${{ runner.os }}-xcode15.4-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
-            spm-${{ runner.os }}-xcode15.4-
+            spm-${{ runner.os }}-
 
       - name: Cache Homebrew
         uses: actions/cache@v4
