@@ -14,16 +14,17 @@
 
 **Files:** none
 
-- [ ] **Step 1: Confirm Xcode, swift, and bats are present**
+- [ ] **Step 1: Confirm CLI toolchain is present**
 
 ```bash
-xcodebuild -version
 swift --version
-bats --version || brew install bats-core
-jq --version || brew install jq
+bats --version
+jq --version
+xcodegen --version
+xcodebuild -version 2>/dev/null || echo "(Xcode not installed — Phases 8-11 will be deferred; Phases 0-7 do not need it)"
 ```
 
-Expected: Xcode ≥ 15, swift 5.9+, bats present (install if missing), jq present (install if missing).
+Expected: swift 5.9+, bats present, jq present, xcodegen present. Xcode is **optional** at this stage — Phases 0–7 use only SPM (`swift build` / `swift test`) and bats. The `xcodebuild` verification at the end of Task 0.4 should be skipped if Xcode is absent and noted in the commit message.
 
 - [ ] **Step 2: Note macOS version**
 
@@ -264,14 +265,18 @@ struct AignalsApp: App {
 
 (XcodeGen merges its own `info.properties` into this file at generation time.)
 
-- [ ] **Step 5: Generate + build**
+- [ ] **Step 5: Generate (always) + build (if Xcode available)**
 
 ```bash
-cd App/Aignals && xcodegen generate && cd ../..
-xcodebuild -project App/Aignals/Aignals.xcodeproj -scheme Aignals -configuration Debug build
+(cd App/Aignals && xcodegen generate)
+if command -v xcodebuild >/dev/null && xcodebuild -version >/dev/null 2>&1; then
+  xcodebuild -project App/Aignals/Aignals.xcodeproj -scheme Aignals -configuration Debug build
+else
+  echo "Xcode not installed; skipping xcodebuild verify. project.yml is committed and CI will exercise the build."
+fi
 ```
 
-Expected: BUILD SUCCEEDED.
+Expected: project.yml + Info.plist + AignalsApp.swift committed; the xcodebuild step succeeds on machines that have Xcode (and on CI).
 
 - [ ] **Step 6: Commit (do NOT commit the generated .xcodeproj — it's a build artifact)**
 
@@ -341,6 +346,7 @@ git commit -m "phase-00: add CI workflow (swift test + bats + xcodebuild)"
 ### Acceptance for Phase 0
 
 - `swift build` and `swift test` succeed locally.
-- `xcodebuild ... build` succeeds locally.
+- `(cd App/Aignals && xcodegen generate)` succeeds locally.
+- If Xcode is installed: `xcodebuild ... build` also succeeds. If not: the verification is deferred to CI / a later session; project.yml is still committed.
 - CI workflow file present.
 - All commits land on `main` (or the active branch).
