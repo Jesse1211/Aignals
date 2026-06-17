@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import os
 
 @MainActor
 @Observable
@@ -51,5 +52,24 @@ public final class SessionStore {
 
     private func publish() {
         continuation.yield(aggregateStatus)
+    }
+}
+
+extension SessionStore {
+    private static let log = Logger(subsystem: "com.aignals.Aignals", category: "SessionStore")
+
+    public func loadFromDisk(path: URL) {
+        guard let data = try? Data(contentsOf: path) else { return }
+        do {
+            let s = try Session.decode(from: data)
+            upsert(s)
+        } catch {
+            Self.log.debug("skip \(path.lastPathComponent): \(String(describing: error))")
+        }
+    }
+
+    public func removeBy(filename: String) {
+        let id = (filename as NSString).deletingPathExtension
+        remove(id: id)
     }
 }
