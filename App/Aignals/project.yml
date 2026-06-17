@@ -1,0 +1,35 @@
+name: Aignals
+options:
+  bundleIdPrefix: com.aignals
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+
+packages:
+  AignalsCore:
+    path: ../../
+
+targets:
+  Aignals:
+    type: application
+    platform: macOS
+    sources:
+      - Sources
+    resources:
+      - Resources
+    info:
+      path: Resources/Info.plist
+      properties:
+        LSUIElement: true
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+    dependencies:
+      - package: AignalsCore
+        product: AignalsCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.aignals.Aignals
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        ENABLE_HARDENED_RUNTIME: NO
+        SWIFT_VERSION: "5.9"
