@@ -80,3 +80,39 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(next, .running)
     }
 }
+
+extension SessionStoreTests {
+    func testLoadFromDiskUpsertsValidFile() throws {
+        let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("aignals-store-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let json = """
+        {
+          "schema_version": 1, "session_id": "a", "tool": "t",
+          "project_name": "p", "started_at": "2026-06-16T14:00:00Z"
+        }
+        """
+        try Data(json.utf8).write(to: tmp)
+
+        let store = SessionStore()
+        store.loadFromDisk(path: tmp)
+        XCTAssertEqual(store.sessions.map(\.sessionID), ["a"])
+    }
+
+    func testLoadFromDiskIgnoresMalformed() throws {
+        let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("aignals-store-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        try Data("not json".utf8).write(to: tmp)
+
+        let store = SessionStore()
+        store.loadFromDisk(path: tmp)
+        XCTAssertTrue(store.sessions.isEmpty)
+    }
+
+    func testLoadFromDiskIgnoresMissingFile() {
+        let store = SessionStore()
+        store.loadFromDisk(path: URL(fileURLWithPath: "/no/such/file.json"))
+        XCTAssertTrue(store.sessions.isEmpty)
+    }
+}
