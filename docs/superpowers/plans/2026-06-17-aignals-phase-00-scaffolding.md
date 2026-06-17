@@ -174,28 +174,62 @@ git commit -m "phase-00: add SPM manifest with library + test targets"
 
 ---
 
-### Task 0.4: Xcode app target
+### Task 0.4: Xcode app target via XcodeGen
+
+We use [XcodeGen](https://github.com/yonaskolb/XcodeGen) so the `.xcodeproj` is generated from a YAML manifest — fully scriptable, no Xcode GUI clicks.
 
 **Files:**
-- Create: `App/Aignals/Aignals.xcodeproj` (via Xcode)
-- Create: `App/Aignals/AignalsApp.swift`
-- Create: `App/Aignals/Info.plist`
+- Create: `App/Aignals/project.yml`
+- Create: `App/Aignals/Sources/AignalsApp.swift`
+- Create: `App/Aignals/Resources/Info.plist`
 
-- [ ] **Step 1: Create the Xcode project manually**
+- [ ] **Step 1: Install XcodeGen**
 
-In Xcode: File → New → Project → macOS → App.
-Settings:
-- Product Name: `Aignals`
-- Team: none (self-signed)
-- Bundle ID: `com.aignals.Aignals`
-- Interface: SwiftUI
-- Language: Swift
-- Use Core Data: off
-- Include Tests: off (we use SPM for tests)
+```bash
+brew install xcodegen
+```
 
-Save into `App/Aignals/`.
+- [ ] **Step 2: Write `App/Aignals/project.yml`**
 
-- [ ] **Step 2: Replace the generated `AignalsApp.swift` content**
+```yaml
+name: Aignals
+options:
+  bundleIdPrefix: com.aignals
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+
+packages:
+  AignalsCore:
+    path: ../../
+
+targets:
+  Aignals:
+    type: application
+    platform: macOS
+    sources:
+      - Sources
+    resources:
+      - Resources
+    info:
+      path: Resources/Info.plist
+      properties:
+        LSUIElement: true
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+    dependencies:
+      - package: AignalsCore
+        product: AignalsCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.aignals.Aignals
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        ENABLE_HARDENED_RUNTIME: NO
+        SWIFT_VERSION: "5.9"
+```
+
+- [ ] **Step 3: Write `App/Aignals/Sources/AignalsApp.swift` (placeholder; Phase 8 replaces)**
 
 ```swift
 import SwiftUI
@@ -213,36 +247,45 @@ struct AignalsApp: App {
 }
 ```
 
-This is a placeholder; real icon/menu come in Phase 8.
+- [ ] **Step 4: Minimal Info.plist**
 
-- [ ] **Step 3: Set the app to "Application is agent (UIElement)" so it has no dock icon**
-
-Edit `App/Aignals/Aignals/Info.plist`, add:
+`App/Aignals/Resources/Info.plist`:
 
 ```xml
-<key>LSUIElement</key>
-<true/>
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>LSUIElement</key>
+  <true/>
+</dict>
+</plist>
 ```
 
-Build target: Set Deployment Target → macOS 13.0.
+(XcodeGen merges its own `info.properties` into this file at generation time.)
 
-- [ ] **Step 4: Link `AignalsCore` library from the SPM workspace**
-
-In Xcode: select the Aignals target → General → Frameworks, Libraries, and Embedded Content → `+` → Add Other → Add Package Dependency → Add Local → select repo root. Add `AignalsCore` to the app target.
-
-- [ ] **Step 5: Build the app**
+- [ ] **Step 5: Generate + build**
 
 ```bash
+cd App/Aignals && xcodegen generate && cd ../..
 xcodebuild -project App/Aignals/Aignals.xcodeproj -scheme Aignals -configuration Debug build
 ```
 
 Expected: BUILD SUCCEEDED.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Commit (do NOT commit the generated .xcodeproj — it's a build artifact)**
+
+Add to `.gitignore`:
+
+```
+App/Aignals/Aignals.xcodeproj
+```
+
+Then:
 
 ```bash
-git add App/Aignals
-git commit -m "phase-00: add Xcode menu-bar app target wired to AignalsCore"
+git add App/Aignals/project.yml App/Aignals/Sources App/Aignals/Resources .gitignore
+git commit -m "phase-00: scaffold Aignals app via XcodeGen"
 ```
 
 ---
@@ -268,12 +311,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_15.4.app
-      - name: Install bats + jq
-        run: brew install bats-core jq
+      - name: Install bats + jq + xcodegen
+        run: brew install bats-core jq xcodegen
       - name: Swift tests (unit + integration + E2E)
         run: swift test
       - name: bats tests (hook CLI)
         run: bats Tests/HookTests
+      - name: Generate Xcode project
+        run: (cd App/Aignals && xcodegen generate)
       - name: Build the app
         run: |
           xcodebuild \

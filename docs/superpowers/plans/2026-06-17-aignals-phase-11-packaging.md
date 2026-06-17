@@ -10,35 +10,59 @@
 
 ---
 
-### Task 11.1: Bundle `aignals-hook` into the app
+### Task 11.1: Bundle `aignals-hook` into the app (XcodeGen)
 
 **Files:**
-- Modify: Xcode project (build phase + Copy Files)
+- Modify: `App/Aignals/project.yml`
 
-- [ ] **Step 1a: Add the script as a project reference**
+- [ ] **Step 1: Add a Copy Files phase + chmod script to `project.yml`**
 
-In Xcode: File → Add Files to "Aignals"… → select `CLI/aignals-hook/aignals-hook`.
-- Uncheck "Copy items if needed" (keep it referenced in place).
-- Uncheck *all* target memberships in the inspector (we'll wire it via Copy Files explicitly).
+Update the `Aignals` target in `App/Aignals/project.yml`:
 
-- [ ] **Step 1b: Add a Copy Files build phase**
-
-Aignals target → Build Phases → `+` → New Copy Files Phase.
-- Destination: `Resources`
-- Click `+` inside the new phase and pick the `aignals-hook` file you just added.
-- Ensure "Copy only when installing" is unchecked.
-
-- [ ] **Step 2: Add a Run Script phase to chmod the copied script**
-
-Run Script (after the Copy Files phase):
-
-```bash
-chmod +x "${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/aignals-hook"
+```yaml
+targets:
+  Aignals:
+    type: application
+    platform: macOS
+    sources:
+      - Sources
+    resources:
+      - Resources
+    info:
+      path: Resources/Info.plist
+      properties:
+        LSUIElement: true
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+    dependencies:
+      - package: AignalsCore
+        product: AignalsCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.aignals.Aignals
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        ENABLE_HARDENED_RUNTIME: NO
+        SWIFT_VERSION: "5.9"
+    buildToolPlugins: []
+    preBuildScripts: []
+    postBuildScripts:
+      - name: "Embed aignals-hook"
+        script: |
+          set -euo pipefail
+          SRC="${SRCROOT}/../../CLI/aignals-hook/aignals-hook"
+          DST="${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/aignals-hook"
+          mkdir -p "$(dirname "$DST")"
+          cp "$SRC" "$DST"
+          chmod +x "$DST"
 ```
 
-- [ ] **Step 3: Build + verify**
+(We use a postBuildScript instead of XcodeGen's `copyFiles` because it keeps the chmod + copy atomic. Same effect as a Copy Files + Run Script combo.)
+
+- [ ] **Step 2: Regenerate + build**
 
 ```bash
+(cd App/Aignals && xcodegen generate)
 xcodebuild -project App/Aignals/Aignals.xcodeproj -scheme Aignals \
   -configuration Release -derivedDataPath ./build build
 APP="./build/Build/Products/Release/Aignals.app"
@@ -47,11 +71,11 @@ test -x "$APP/Contents/Resources/aignals-hook"
 
 Expected: file exists and is executable.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
-git add App/Aignals/Aignals.xcodeproj
-git commit -m "phase-11: bundle aignals-hook into Aignals.app Resources"
+git add App/Aignals/project.yml
+git commit -m "phase-11: bundle aignals-hook into Aignals.app via postBuildScript"
 ```
 
 ---
