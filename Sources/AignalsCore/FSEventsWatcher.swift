@@ -37,7 +37,7 @@ public final class FSEventsWatcher {
             paths,
             FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
             0.25,
-            FSEventStreamCreateFlags(kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagNoDefer)
+            FSEventStreamCreateFlags(kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagNoDefer | kFSEventStreamCreateFlagUseCFTypes)
         ) else { return }
 
         FSEventStreamSetDispatchQueue(s, queue)
