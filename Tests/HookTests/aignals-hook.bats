@@ -65,8 +65,16 @@ teardown() { rm -rf "$TMP"; }
 }
 
 @test "jq missing causes exit 0 with stderr hint" {
-  empty="$TMP/empty-path"; mkdir -p "$empty"  # contains nothing
-  run env -i HOME="$HOME" AIGNALS_HOME="$AIGNALS_HOME" PATH="$empty" bash -c \
+  # Sandbox PATH: every external tool aignals-hook uses, except jq. An empty
+  # PATH would break the script's `#!/usr/bin/env bash` shebang itself, so we
+  # symlink the tools the hook actually needs and just omit jq.
+  sandbox="$TMP/sandbox-no-jq"
+  mkdir -p "$sandbox"
+  for cmd in env bash mkdir chmod cat mv date basename cut rm; do
+    src="$(command -v "$cmd")" || skip "missing $cmd on test host"
+    ln -sf "$src" "$sandbox/$cmd"
+  done
+  run env -i HOME="$HOME" AIGNALS_HOME="$AIGNALS_HOME" PATH="$sandbox" bash -c \
     "echo '{\"session_id\":\"s1\"}' | \"$HOOK\" on-sessionstart"
   [ "$status" -eq 0 ]
   [[ "$stderr" =~ "jq not found" ]] || [[ "$output" =~ "jq not found" ]] || true
