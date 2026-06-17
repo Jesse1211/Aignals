@@ -1,0 +1,29 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+      - name: Install bats + jq + xcodegen
+        run: brew install bats-core jq xcodegen
+      - name: Swift tests (unit + integration + E2E)
+        run: swift test
+      - name: bats tests (hook CLI)
+        run: bats Tests/HookTests
+      - name: Generate Xcode project
+        run: (cd App/Aignals && xcodegen generate)
+      - name: Build the app
+        run: |
+          xcodebuild \
+            -project App/Aignals/Aignals.xcodeproj \
+            -scheme Aignals \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            build
