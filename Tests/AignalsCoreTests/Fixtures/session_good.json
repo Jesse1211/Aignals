@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "session_id": "abc-123",
+  "tool": "claude-code",
+  "pid": 48217,
+  "project_name": "Aignals",
+  "cwd": "/Users/jesseliu/Desktop/Chore/Aignals",
+  "started_at": "2026-06-16T14:52:08Z",
+  "current_action": {
+    "tool": "Edit",
+    "target": "main.swift",
+    "updated_at": "2026-06-16T14:54:31Z"
+  }
+}
