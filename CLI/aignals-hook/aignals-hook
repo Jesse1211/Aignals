@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# aignals-hook — emit/maintain ~/.aignals/sessions/<id>.json from Claude Code hook payloads.
+# Exit 0 on every path so Claude Code never breaks because of the indicator.
+
+set -u
+
+AIGNALS_HOME_DEFAULT="$HOME/.aignals"
+AIGNALS_HOME="${AIGNALS_HOME:-$AIGNALS_HOME_DEFAULT}"
+SESSIONS_DIR="$AIGNALS_HOME/sessions"
+
+require_jq() {
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "aignals-hook: jq not found. Install with: brew install jq" >&2
+    exit 0
+  fi
+}
+
+ensure_dirs() {
+  mkdir -p "$SESSIONS_DIR" 2>/dev/null || true
+  chmod 700 "$AIGNALS_HOME" 2>/dev/null || true
+  chmod 700 "$SESSIONS_DIR" 2>/dev/null || true
+}
+
+atomic_write() {
+  # atomic_write <path> < stdin
+  local path="$1"
+  local tmp="${path}.tmp.$$"
+  cat > "$tmp"
+  mv -f "$tmp" "$path"
+}
+
+now_iso() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
+
+# --- subcommands ---
+cmd_on_sessionstart() {
+  require_jq; ensure_dirs
+  local payload; payload="$(cat)"
+  local sid; sid="$(echo "$payload" | jq -r '.session_id // empty')"
+  [ -z "$sid" ] && exit 0
+  local cwd; cwd="$(echo "$payload" | jq -r '.cwd // empty')"
+  local project; project="$(basename "${cwd:-$PWD}")"
+  local pid="${PPID:-0}"
+  jq -n \
+    --argjson schema_version 1 \
+    --arg session_id "$sid" \
+    --arg tool "claude-code" \
+    --argjson pid "$pid" \
+    --arg project_name "$project" \
+    --arg cwd "${cwd:-$PWD}" \
+    --arg started_at "$(now_iso)" \
+    '{schema_version:$schema_version, session_id:$session_id, tool:$tool, pid:$pid, project_name:$project_name, cwd:$cwd, started_at:$started_at}' \
+    | atomic_write "$SESSIONS_DIR/$sid.json"
+}
+
+cmd_on_pretool() {
+  require_jq; ensure_dirs
+  local payload; payload="$(cat)"
+  local sid; sid="$(echo "$payload" | jq -r '.session_id // empty')"
+  [ -z "$sid" ] && exit 0
+  local file="$SESSIONS_DIR/$sid.json"
+  [ -f "$file" ] || exit 0
+
+  local tool_name; tool_name="$(echo "$payload" | jq -r '.tool_name // empty')"
+  local target=""
+  case "$tool_name" in
+    Bash)
+      target="$(echo "$payload" | jq -r '.tool_input.command // empty' | cut -c1-80)" ;;
+    Edit|Write|MultiEdit|Read)
+      target="$(echo "$payload" | jq -r '.tool_input.file_path // empty')" ;;
+    Grep|Glob)
+      target="$(echo "$payload" | jq -r '.tool_input.pattern // empty')" ;;
+    WebFetch)
+      target="$(echo "$payload" | jq -r '.tool_input.url // empty')" ;;
+    WebSearch)
+      target="$(echo "$payload" | jq -r '.tool_input.query // empty')" ;;
+    *)
+      target="" ;;
+  esac
+
+  jq --arg tool "$tool_name" \
+     --arg target "$target" \
+     --arg updated_at "$(now_iso)" \
+     '.current_action = {tool:$tool, target:$target, updated_at:$updated_at}' \
+     "$file" | atomic_write "$file"
+}
+
+cmd_remove() {
+  ensure_dirs
+  local payload; payload="$(cat 2>/dev/null || true)"
+  local sid
+  if command -v jq >/dev/null 2>&1; then
+    sid="$(echo "$payload" | jq -r '.session_id // empty')"
+  else
+    sid=""
+  fi
+  [ -z "$sid" ] && exit 0
+  rm -f "$SESSIONS_DIR/$sid.json" 2>/dev/null || true
+}
+
+case "${1:-}" in
+  on-sessionstart) cmd_on_sessionstart ;;
+  on-pretool)      cmd_on_pretool ;;
+  on-stop)         cmd_remove ;;
+  on-sessionend)   cmd_remove ;;
+  --help|-h|"")
+    cat <<USAGE
+usage: aignals-hook <on-sessionstart|on-pretool|on-stop|on-sessionend>
+Reads Claude Code hook payload from stdin.
+USAGE
+    ;;
+  *)
+    echo "aignals-hook: unknown subcommand '$1'" >&2
+    exit 0
+    ;;
+esac
