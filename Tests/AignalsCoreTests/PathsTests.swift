@@ -30,3 +30,31 @@ final class PathsTests: XCTestCase {
         )
     }
 }
+
+extension PathsTests {
+    func testEnsureDirectoriesCreatesMissingPathsWithMode0700() throws {
+        let temp = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("aignals-paths-test-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: temp) }
+
+        let paths = Paths(environment: ["AIGNALS_HOME": temp.path])
+        try paths.ensureDirectories()
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: paths.home.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: paths.sessionsDirectory.path))
+
+        let attrs = try FileManager.default.attributesOfItem(atPath: paths.home.path)
+        let perms = (attrs[.posixPermissions] as? NSNumber)?.uint16Value ?? 0
+        XCTAssertEqual(perms & 0o777, 0o700)
+    }
+
+    func testEnsureDirectoriesIsIdempotent() throws {
+        let temp = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("aignals-paths-test-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: temp) }
+
+        let paths = Paths(environment: ["AIGNALS_HOME": temp.path])
+        try paths.ensureDirectories()
+        try paths.ensureDirectories()  // should not throw
+    }
+}
