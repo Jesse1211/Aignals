@@ -1,0 +1,91 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (without leading v, e.g. 0.1.0)'
+        required: true
+        default: '0.0.0-dev'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            V="${{ github.event.inputs.version }}"
+          else
+            V="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "Building Aignals v$V"
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: (cd App/Aignals && xcodegen generate)
+
+      - name: Build Release
+        run: |
+          xcodebuild \
+            -project App/Aignals/Aignals.xcodeproj \
+            -scheme Aignals \
+            -configuration Release \
+            -destination 'platform=macOS' \
+            -derivedDataPath ./build \
+            MARKETING_VERSION=${{ steps.ver.outputs.version }} \
+            build
+
+      - name: Self-sign
+        run: |
+          APP="./build/Build/Products/Release/Aignals.app"
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --verbose=2 "$APP"
+
+      - name: Package zip + dmg
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          APP="./build/Build/Products/Release/Aignals.app"
+          mkdir -p dist
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "dist/Aignals-$V.zip"
+          hdiutil create \
+            -volname "Aignals $V" \
+            -srcfolder "$APP" \
+            -ov -format UDZO \
+            "dist/Aignals-$V.dmg"
+          shasum -a 256 dist/Aignals-$V.zip dist/Aignals-$V.dmg \
+            > dist/SHA256SUMS-$V.txt
+          ls -lh dist/
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aignals-${{ steps.ver.outputs.version }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/Aignals-*.zip
+            dist/Aignals-*.dmg
+            dist/SHA256SUMS-*.txt
+          generate_release_notes: true
+          fail_on_unmatched_files: true
