@@ -48,6 +48,8 @@ jobs:
             -destination 'platform=macOS' \
             -derivedDataPath ./build \
             MARKETING_VERSION=${{ steps.ver.outputs.version }} \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
             build
 
       - name: Self-sign
