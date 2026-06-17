@@ -1,24 +1,67 @@
 name: ci
+
 on:
   push:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        xcode: ['15.4', '16.0']
+    name: test (Xcode ${{ matrix.xcode }})
     steps:
       - uses: actions/checkout@v4
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+
+      - name: Select Xcode ${{ matrix.xcode }}
+        run: sudo xcode-select -s "/Applications/Xcode_${{ matrix.xcode }}.app"
+
+      - name: Print toolchain versions
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+
+      - name: Cache SwiftPM build
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            ~/Library/Caches/org.swift.swiftpm
+          key: spm-${{ runner.os }}-xcode${{ matrix.xcode }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            spm-${{ runner.os }}-xcode${{ matrix.xcode }}-
+
+      - name: Cache Homebrew
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/Homebrew
+          key: brew-${{ runner.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
+
       - name: Install bats + jq + xcodegen
         run: brew install bats-core jq xcodegen
+
       - name: Swift tests (unit + integration + E2E)
-        run: swift test
+        run: swift test --parallel
+
       - name: bats tests (hook CLI)
-        run: bats Tests/HookTests
+        run: |
+          if compgen -G "Tests/HookTests/*.bats" > /dev/null; then
+            bats Tests/HookTests
+          else
+            echo "::notice::No .bats files in Tests/HookTests yet — skipping (Phase 6)."
+          fi
+
       - name: Generate Xcode project
         run: (cd App/Aignals && xcodegen generate)
+
       - name: Build the app
         run: |
           xcodebuild \
@@ -26,4 +69,14 @@ jobs:
             -scheme Aignals \
             -configuration Debug \
             -destination 'platform=macOS' \
+            -derivedDataPath ./build \
             build
+
+      - name: Upload .app artifact
+        if: matrix.xcode == '15.4'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aignals-Debug-app
+          path: build/Build/Products/Debug/Aignals.app
+          if-no-files-found: error
+          retention-days: 14
