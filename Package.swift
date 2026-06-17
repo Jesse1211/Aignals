@@ -15,7 +15,8 @@ let package = Package(
         .testTarget(
             name: "AignalsCoreTests",
             dependencies: ["AignalsCore"],
-            path: "Tests/AignalsCoreTests"
+            path: "Tests/AignalsCoreTests",
+            resources: [.copy("Fixtures")]
         ),
         .testTarget(
             name: "AignalsE2ETests",
