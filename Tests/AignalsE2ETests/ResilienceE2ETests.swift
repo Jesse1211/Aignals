@@ -86,7 +86,8 @@ final class ResilienceE2ETests: XCTestCase {
         let h = try makeHarness()
         // Producer writes via tmp+mv (this is what aignals-hook does):
         try h.runHook("on-sessionstart", payload: "{\"session_id\":\"atom\",\"cwd\":\"/p\"}")
-        XCTAssertTrue(await h.waitForStatus(.running))
+        let reachedRunning = await h.waitForStatus(.running)
+        XCTAssertTrue(reachedRunning)
         // After running, no .tmp files should remain in the dir.
         let entries = try FileManager.default.contentsOfDirectory(
             atPath: h.paths.sessionsDirectory.path)
@@ -99,11 +100,13 @@ final class ResilienceE2ETests: XCTestCase {
         // chmod 000 the sessions dir → sweeper's FS-access probe flips to .error.
         try FileManager.default.setAttributes(
             [.posixPermissions: 0o000], ofItemAtPath: h.paths.sessionsDirectory.path)
-        XCTAssertTrue(await h.waitForStatus(.error))
+        let reachedError = await h.waitForStatus(.error)
+        XCTAssertTrue(reachedError)
 
         // restore
         try FileManager.default.setAttributes(
             [.posixPermissions: 0o700], ofItemAtPath: h.paths.sessionsDirectory.path)
-        XCTAssertTrue(await h.waitForStatus(.idle))
+        let reachedIdle = await h.waitForStatus(.idle)
+        XCTAssertTrue(reachedIdle)
     }
 }
