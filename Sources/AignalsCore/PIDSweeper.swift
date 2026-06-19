@@ -19,7 +19,8 @@ public final class PIDSweeper {
     public func start() {
         guard timer == nil else { return }
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.sweepOnce() }
+            guard let self else { return }
+            Task { @MainActor in self.sweepOnce() }
         }
         sweepOnce()
     }
