@@ -22,10 +22,18 @@ final class InstallHooksE2ETests: XCTestCase {
         let hookBinary = Harness.repoRoot
             .appendingPathComponent("CLI/aignals-hook/aignals-hook")
 
-        // A real-but-empty directory as the only PATH entry → jq is unfindable
-        // regardless of /opt/homebrew/bin or /usr/local/bin on the runner.
-        let emptyPathDir = tmp.appendingPathComponent("nojq")
-        try FileManager.default.createDirectory(at: emptyPathDir, withIntermediateDirectories: true)
+        // Restrict PATH to the system bin dirs so bash + coreutils (mkdir, cat,
+        // mv, date, basename) still resolve, but Homebrew's jq — installed only
+        // in /opt/homebrew/bin (arm64) or /usr/local/bin (Intel) — is excluded.
+        // This isolates the "jq missing" condition without breaking the shell.
+        let jqlessPath = "/usr/bin:/bin"
+
+        // Sanity-guard: if jq somehow lives on the restricted PATH, the test's
+        // premise is void — skip rather than assert a false positive.
+        try XCTSkipIf(
+            FileManager.default.isExecutableFile(atPath: "/usr/bin/jq")
+                || FileManager.default.isExecutableFile(atPath: "/bin/jq"),
+            "jq present on system PATH; cannot simulate jq-missing")
 
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/bash")
@@ -34,7 +42,7 @@ final class InstallHooksE2ETests: XCTestCase {
             "echo '{\"session_id\":\"x\",\"cwd\":\"/p\"}' | \"\(hookBinary.path)\" on-sessionstart",
         ]
         p.environment = [
-            "PATH": emptyPathDir.path,
+            "PATH": jqlessPath,
             "AIGNALS_HOME": tmp.path,
             "HOME": NSHomeDirectory(),
         ]
