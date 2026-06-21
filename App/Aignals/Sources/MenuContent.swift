@@ -10,6 +10,8 @@ import AignalsCore
 struct MenuContent: View {
     @Bindable var vm: AppViewModel
 
+    @Environment(\.openWindow) private var openWindow
+
     @State private var tick = Date()
 
     /// 30s tick keeps elapsed-time subtitles fresh while the menu is open
@@ -40,6 +42,7 @@ struct MenuContent: View {
         // NO-OP stub per ADR-0805 / OQ-81 — do not implement install here.
         Button("Install Claude Code Hooks…") {}
         Button("Open ~/.aignals") { vm.revealAignalsHome() }
+        Button("About Aignals…") { openWindow(id: "about") }
 
         Divider()
 

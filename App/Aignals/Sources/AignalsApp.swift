@@ -18,5 +18,10 @@ struct AignalsApp: App {
             Image(nsImage: StatusIcon.image(for: vm.store.aggregateStatus))
         }
         .menuBarExtraStyle(.menu)
+
+        Window("About Aignals", id: "about") {
+            AboutView()
+        }
+        .windowResizability(.contentSize)
     }
 }
