@@ -93,41 +93,19 @@ extension AppViewModel {
         overrideStore.override(for: session.sessionID)?.pinned ?? false
     }
 
-    /// Session list in display order (INV-11 / ADR-16 / ADR-19):
-    /// 1. PINNED sessions first — newest pinned (by `startedAt`) on top.
-    /// 2. then sessions carrying an explicit `override.order`, ascending by it.
-    /// 3. then the remaining (unordered) sessions newest-first by `startedAt`,
-    ///    so a brand-new session appears at the TOP of its group.
+    /// Session list in display order (INV-11 / ADR-16 / ADR-19). The pure
+    /// ordering rule lives in `AignalsCore.SessionOrdering` so it is unit-tested
+    /// outside the (untestable) view-model. Key behaviors:
+    ///   1. pinned sessions first; pinned rows honor a drag-set `order` among
+    ///      themselves (so a pinned reorder persists), falling back to
+    ///      `startedAt`;
+    ///   2. an UNORDERED (brand-new) session sorts to the TOP of its group even
+    ///      after other sessions were ordered by a drag (ADR-16).
     var sortedSessions: [Session] {
         _ = overridesVersion // re-derive when overrides change
-        let sessions = store.sessions
-
-        func ov(_ s: Session) -> SessionOverride? { overrideStore.override(for: s.sessionID) }
-
-        return sessions.sorted { a, b in
-            let oa = ov(a), ob = ov(b)
-            let pa = oa?.pinned ?? false
-            let pb = ob?.pinned ?? false
-
-            // 1. pinned first; within pinned, newest on top.
-            if pa != pb { return pa }
-            if pa && pb { return a.startedAt > b.startedAt }
-
-            // 2. explicit order beats unordered; ascending by order.
-            let orderA = oa?.order
-            let orderB = ob?.order
-            switch (orderA, orderB) {
-            case let (.some(x), .some(y)):
-                if x != y { return x < y }
-                return a.startedAt > b.startedAt
-            case (.some, .none):
-                return true
-            case (.none, .some):
-                return false
-            case (.none, .none):
-                // 3. unordered: newest-first so a new session lands on top.
-                return a.startedAt > b.startedAt
-            }
+        return SessionOrdering.sorted(store.sessions) { s in
+            guard let ov = overrideStore.override(for: s.sessionID) else { return nil }
+            return OrderingOverride(order: ov.order, pinned: ov.pinned)
         }
     }
 
@@ -142,11 +120,32 @@ extension AppViewModel {
         overridesVersion &+= 1
     }
 
-    /// Persist a new explicit order for the given session ordering (ADR-16/INV-11).
-    /// Assigns sequential indices so the on-screen order round-trips.
+    /// Persist a new explicit order for the given on-screen ordering
+    /// (ADR-16/INV-11). A drag never moves a row between the pinned and unpinned
+    /// groups (rule 1 — pinned-first — would immediately override that anyway),
+    /// so we stamp sequential indices WITHIN each group, in the order the rows
+    /// currently appear. This keeps the persisted result coherent with the
+    /// visible drop and lets two pinned rows be reordered (their `order` now
+    /// participates in the sort, see `SessionOrdering`).
+    ///
+    /// We deliberately do NOT stamp sessions that were already orderless and
+    /// stayed at the top untouched? — no: to make a drag round-trip we must give
+    /// every row in the dragged group a concrete index. A brand-new session that
+    /// appears AFTER this drag still has no override and therefore sorts to the
+    /// top (ADR-16), which is the whole point of the orderless-on-top rule.
     func setOrder(_ orderedSessions: [Session]) {
-        for (index, s) in orderedSessions.enumerated() {
+        var index = 0
+        // Stamp pinned rows first (in their displayed order), then unpinned —
+        // matching the group order the sort itself uses, so indices never fight
+        // the pinned-first rule.
+        for s in orderedSessions where isPinned(s) {
             overrideStore.setOrder(index, for: s.sessionID)
+            index += 1
+        }
+        index = 0
+        for s in orderedSessions where !isPinned(s) {
+            overrideStore.setOrder(index, for: s.sessionID)
+            index += 1
         }
         overridesVersion &+= 1
     }
@@ -177,8 +176,46 @@ extension AppViewModel {
             .appendingPathComponent(".claude/settings.json")
     }
 
+    /// Install the Claude Code hooks so the indicator actually lights up.
+    ///
+    /// ROOT-CAUSE FIX: previously this wrote BARE commands ("aignals-hook on-…")
+    /// into settings.json. A bare command only resolves if `aignals-hook` is on
+    /// the PATH the hook shell sees — which only happens if the user ALSO ran the
+    /// SEPARATE "Install aignals-hook CLI" item AND that dir is on PATH. So the
+    /// default first-launch flow produced settings.json with commands that
+    /// silently never fired, yet reported "installed". Here we instead:
+    ///   1. resolve the hook's ABSOLUTE path (linked CLI if present, else the
+    ///      bundled hook), and write absolute-path commands that fire regardless
+    ///      of PATH; and
+    ///   2. ALSO link the bundled hook into ~/.local/bin so the CLI is available
+    ///      from one action — no second click, no PATH dependency for hooks.
+    /// If no absolute path can be resolved (e.g. running unbundled in dev), we
+    /// fall back to the bare form rather than failing.
     func installClaudeHooks() throws {
-        try HookInstaller().install(into: claudeSettingsURL)
+        let hookPath = try resolveHookPathForInstall()
+        try HookInstaller().install(into: claudeSettingsURL, hookPath: hookPath)
+    }
+
+    /// Resolve the absolute path to write into the hook commands. Prefers an
+    /// already-linked CLI; otherwise links the bundled hook into ~/.local/bin
+    /// (so the CLI is available too) and returns that. Returns `nil` only when no
+    /// bundled hook exists (dev/unbundled), in which case the caller writes the
+    /// bare fallback form.
+    private func resolveHookPathForInstall() throws -> String? {
+        // Already linked onto PATH from a prior CLI install — point at it.
+        if hookIsLinked {
+            return hookSymlinkURL.path
+        }
+        // Couple the steps: linking the bundled hook makes the CLI available AND
+        // gives us a stable absolute path for the hook commands.
+        if bundledHookURL != nil {
+            try? linkHookCLI()
+            if hookIsLinked { return hookSymlinkURL.path }
+            // Linking failed (e.g. ~/.local not writable); fall back to the
+            // bundled path directly so the hooks still fire.
+            return bundledHookURL?.path
+        }
+        return nil // dev/unbundled: HookInstaller writes the bare fallback.
     }
 
     var claudeHooksInstalled: Bool {

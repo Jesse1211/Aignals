@@ -241,6 +241,68 @@ final class HookInstallerTests: XCTestCase {
                        "a Notification entry with a missing matcher must report not-installed")
     }
 
+    // MARK: - C1: absolute-path install (root-cause fix)
+
+    /// Installing with an absolute `hookPath` must write ABSOLUTE-path commands
+    /// ("/abs/aignals-hook on-<sub>"), not the bare PATH-dependent form — so the
+    /// hooks fire regardless of the hook shell's PATH.
+    func testInstallWithAbsoluteHookPathWritesAbsoluteCommands() throws {
+        let file = tmpFile()
+        defer { try? FileManager.default.removeItem(at: file) }
+
+        let abs = "/Users/x/.local/bin/aignals-hook"
+        try HookInstaller().install(into: file, hookPath: abs)
+
+        let json = try readJSON(file)
+        for (event, sub, _) in HookInstaller.eventSubcommands {
+            let expected = "\(abs) \(sub)"
+            XCTAssertTrue(commands(in: json, event: event).contains(expected),
+                          "expected absolute command \(expected) under \(event); got \(commands(in: json, event: event))")
+            // And NOT the bare form.
+            XCTAssertFalse(commands(in: json, event: event).contains("aignals-hook \(sub)"),
+                           "bare command for \(sub) must not be written when an absolute path is given")
+        }
+    }
+
+    /// After an absolute-path install, `isInstalled` must report true (suffix
+    /// match recognizes the absolute commands).
+    func testIsInstalledRecognizesAbsoluteInstall() throws {
+        let file = tmpFile()
+        defer { try? FileManager.default.removeItem(at: file) }
+        try HookInstaller().install(into: file, hookPath: "/opt/aignals/aignals-hook")
+        XCTAssertTrue(HookInstaller().isInstalled(in: file),
+                      "an absolute-path install must report installed")
+    }
+
+    /// The bare-form default API must still work and write bare commands (back
+    /// compat — existing tests and dev/unbundled flow depend on it).
+    func testBareDefaultStillWritesBareCommands() throws {
+        let file = tmpFile()
+        defer { try? FileManager.default.removeItem(at: file) }
+        try HookInstaller().install(into: file)           // default, no path
+        try HookInstaller().install(into: file, hookPath: nil)  // explicit nil
+        let json = try readJSON(file)
+        for def in HookInstaller.events {
+            XCTAssertTrue(commands(in: json, event: def.event).contains(def.command),
+                          "bare default must still write \(def.command)")
+        }
+    }
+
+    /// Re-installing the absolute form over an existing bare install must NOT
+    /// duplicate: the same " on-<sub>" hook already present should be left alone
+    /// regardless of program-token form (idempotent across forms).
+    func testAbsoluteReinstallOverBareIsIdempotent() throws {
+        let file = tmpFile()
+        defer { try? FileManager.default.removeItem(at: file) }
+        try HookInstaller().install(into: file)                              // bare
+        try HookInstaller().install(into: file, hookPath: "/abs/aignals-hook") // absolute over bare
+
+        let json = try readJSON(file)
+        // Stop appears exactly once (no duplicate from the cross-form reinstall).
+        let stop = commands(in: json, event: "Stop")
+        XCTAssertEqual(stop.count, 1, "Stop hook must not be duplicated across forms, got \(stop)")
+    }
+
     func testMalformedExistingFileThrows() throws {
         let file = tmpFile()
         defer { try? FileManager.default.removeItem(at: file) }

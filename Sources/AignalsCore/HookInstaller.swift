@@ -21,23 +21,50 @@ public struct HookInstaller {
         }
     }
 
-    /// Every hook event the state machine needs, each mapped to its
-    /// matching `aignals-hook` subcommand. The two `Notification` events are
-    /// distinguished by their `matcher` (notification_type).
-    public static let events: [EventDef] = [
-        .init(event: "SessionStart",    command: "aignals-hook on-sessionstart"),
-        .init(event: "UserPromptSubmit", command: "aignals-hook on-prompt"),
-        .init(event: "PreToolUse",      command: "aignals-hook on-pretool"),
-        .init(event: "Notification",    command: "aignals-hook on-permission", matcher: "permission_prompt"),
-        .init(event: "PostToolUse",     command: "aignals-hook on-posttool"),
-        .init(event: "PermissionDenied", command: "aignals-hook on-permission-denied"),
-        .init(event: "Notification",    command: "aignals-hook on-idle", matcher: "idle_prompt"),
-        .init(event: "Stop",            command: "aignals-hook on-stop"),
-        .init(event: "SessionEnd",      command: "aignals-hook on-sessionend"),
+    /// The `(event, subcommand)` pairs the state machine needs. The leading
+    /// program token (`aignals-hook` vs an absolute path) is supplied separately
+    /// so we can write either a bare command (PATH-dependent fallback) or an
+    /// absolute-path command that fires regardless of PATH (CRITICAL fix: a bare
+    /// command silently never resolves unless the user ALSO links the CLI onto
+    /// PATH — decoupling registration from where the hook actually lives).
+    static let eventSubcommands: [(event: String, subcommand: String, matcher: String?)] = [
+        ("SessionStart",     "on-sessionstart",      nil),
+        ("UserPromptSubmit", "on-prompt",            nil),
+        ("PreToolUse",       "on-pretool",           nil),
+        ("Notification",     "on-permission",        "permission_prompt"),
+        ("PostToolUse",      "on-posttool",          nil),
+        ("PermissionDenied", "on-permission-denied", nil),
+        ("Notification",     "on-idle",              "idle_prompt"),
+        ("Stop",             "on-stop",              nil),
+        ("SessionEnd",       "on-sessionend",        nil),
     ]
+
+    /// The bare-command program token written when no absolute hook path is
+    /// known. Resolves only if `aignals-hook` is on the hook shell's PATH.
+    public static let bareProgram = "aignals-hook"
+
+    /// Build the event table for a given hook program token. Passing the
+    /// absolute path to the embedded/linked `aignals-hook` makes the registered
+    /// commands fire without any PATH dependency (the root-cause fix). Passing
+    /// `nil` keeps the legacy bare-command form.
+    public static func events(hookPath: String? = nil) -> [EventDef] {
+        let program = hookPath ?? bareProgram
+        return eventSubcommands.map {
+            .init(event: $0.event, command: "\(program) \($0.subcommand)", matcher: $0.matcher)
+        }
+    }
+
+    /// Every hook event the state machine needs, each mapped to its matching
+    /// bare `aignals-hook` subcommand (PATH-dependent fallback form). Tests and
+    /// the suffix-matching `isInstalled`/`mergeEvent` logic key off the
+    /// subcommand suffix, so an absolute-path install still round-trips.
+    public static let events: [EventDef] = events(hookPath: nil)
 
     public init() {}
 
+    /// Whether all required hooks are present. Suffix-matching means an install
+    /// that wrote absolute paths (e.g. "/abs/aignals-hook on-stop") still counts
+    /// as installed, since each command ends in the bare " on-<subcommand>".
     public func isInstalled(in file: URL) -> Bool {
         guard let data = try? Data(contentsOf: file),
               let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
@@ -46,7 +73,21 @@ public struct HookInstaller {
         return Self.events.allSatisfy { hasCommand($0.command, event: $0.event, matcher: $0.matcher, root: root) }
     }
 
+    /// Install the bare-command form (legacy default; PATH-dependent).
     public func install(into file: URL) throws {
+        try install(into: file, hookPath: nil)
+    }
+
+    /// Install, writing each command with `hookPath` as the program token when
+    /// provided. With an absolute `hookPath`, the registered commands fire
+    /// regardless of the hook shell's PATH — the root-cause fix for "install
+    /// registers a bare command that silently never fires".
+    public func install(into file: URL, hookPath: String?) throws {
+        let events = Self.events(hookPath: hookPath)
+        try install(events: events, into: file)
+    }
+
+    private func install(events: [EventDef], into file: URL) throws {
         var root: [String: Any] = [:]
         if FileManager.default.fileExists(atPath: file.path) {
             let data = try Data(contentsOf: file)
@@ -58,7 +99,7 @@ public struct HookInstaller {
             }
         }
         var hooks = root["hooks"] as? [String: Any] ?? [:]
-        for e in Self.events {
+        for e in events {
             hooks[e.event] = mergeEvent(eventArray: hooks[e.event] as? [[String: Any]] ?? [],
                                         command: e.command,
                                         matcher: e.matcher)
@@ -74,13 +115,17 @@ public struct HookInstaller {
     }
 
     private func mergeEvent(eventArray: [[String: Any]], command: String, matcher: String?) -> [[String: Any]] {
-        // Already present? Match by suffix so an existing absolute-path entry
-        // (e.g. "/path/to/aignals-hook on-stop") counts as present and we don't
-        // append a duplicate bare-command entry. Must use the same rule as
-        // `hasCommand` (isInstalled) so the two never disagree.
+        // Already present? Match on the bare " on-<subcommand>" suffix (and, for
+        // disambiguated Notification entries, the matcher) so that ANY program
+        // token form — bare "aignals-hook on-stop", an old absolute path, or the
+        // new absolute path we are about to write — counts as the same hook and
+        // we never append a duplicate. `bareSuffix` is the program-independent
+        // tail; it must match the rule `hasCommand` (isInstalled) uses.
+        let bareSuffix = Self.bareSuffix(of: command)
         for entry in eventArray {
+            if matcher != nil, (entry["matcher"] as? String) != matcher { continue }
             if let inner = entry["hooks"] as? [[String: Any]],
-               inner.contains(where: { ($0["command"] as? String)?.hasSuffix(command) == true }) {
+               inner.contains(where: { ($0["command"] as? String)?.hasSuffix(bareSuffix) == true }) {
                 return eventArray
             }
         }
@@ -95,6 +140,17 @@ public struct HookInstaller {
         }
         out.append(entry)
         return out
+    }
+
+    /// The program-token-independent tail of a hook command, e.g.
+    /// "/abs/aignals-hook on-stop" → " on-stop" and "aignals-hook on-stop" →
+    /// " on-stop". Used to recognize the same hook regardless of whether it was
+    /// written bare or with an absolute path, so re-install stays idempotent.
+    static func bareSuffix(of command: String) -> String {
+        if let r = command.range(of: " on-") {
+            return String(command[r.lowerBound...])
+        }
+        return command
     }
 
     private func hasCommand(_ command: String, event: String, matcher: String?, root: [String: Any]) -> Bool {
