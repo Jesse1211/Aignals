@@ -4,9 +4,9 @@ import AignalsCore
 /// Menu bar dropdown content.
 ///
 /// Per ADR-0802 this view lives under `App/Aignals/Sources/` and binds to the
-/// shared `AppViewModel`. The "Install Claude Code Hooks…" button is an
-/// intentional no-op stub per ADR-0805 / OQ-81 — install is out of scope for
-/// this phase and must NOT be implemented here.
+/// shared `AppViewModel`. The "Install Claude Code Hooks…" button (phase-09)
+/// performs the idempotent merge into `~/.claude/settings.json` via
+/// `AppViewModel.installClaudeHooks()` and reports the outcome via `NSAlert`.
 struct MenuContent: View {
     @Bindable var vm: AppViewModel
 
@@ -39,8 +39,15 @@ struct MenuContent: View {
 
         Divider()
 
-        // NO-OP stub per ADR-0805 / OQ-81 — do not implement install here.
-        Button("Install Claude Code Hooks…") {}
+        Button("Install Claude Code Hooks…") {
+            do {
+                try vm.installClaudeHooks()
+                Self.alert("Hooks installed", informative: "Aignals will now light up when Claude Code is working.")
+            } catch {
+                Self.alert("Couldn't install hooks",
+                           informative: "Edit ~/.claude/settings.json manually. Error: \(error)")
+            }
+        }
         Button("Open ~/.aignals") { vm.revealAignalsHome() }
         Button("About Aignals…") { openWindow(id: "about") }
 
@@ -49,6 +56,14 @@ struct MenuContent: View {
         Button("Quit Aignals") { NSApplication.shared.terminate(nil) }
             .keyboardShortcut("q")
             .onReceive(timer) { tick = $0 }
+            .onAppear { FirstLaunchPrompt.maybeShow(viewModel: vm) }
+    }
+
+    private static func alert(_ title: String, informative: String) {
+        let a = NSAlert()
+        a.messageText = title
+        a.informativeText = informative
+        a.runModal()
     }
 
     @ViewBuilder

@@ -45,3 +45,18 @@ final class AppViewModel {
         NSWorkspace.shared.open(paths.home)
     }
 }
+
+extension AppViewModel {
+    var claudeSettingsURL: URL {
+        URL(fileURLWithPath: NSHomeDirectory())
+            .appendingPathComponent(".claude/settings.json")
+    }
+
+    func installClaudeHooks() throws {
+        try HookInstaller().install(into: claudeSettingsURL)
+    }
+
+    var claudeHooksInstalled: Bool {
+        HookInstaller().isInstalled(in: claudeSettingsURL)
+    }
+}
