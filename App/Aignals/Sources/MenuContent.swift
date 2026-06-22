@@ -51,6 +51,11 @@ struct MenuContent: View {
         Button("Open ~/.aignals") { vm.revealAignalsHome() }
         Button("About Aignals…") { openWindow(id: "about") }
 
+        Toggle("Launch at Login", isOn: Binding(
+            get: { vm.launchAtLogin },
+            set: { vm.launchAtLogin = $0 }
+        ))
+
         Divider()
 
         Button("Quit Aignals") { NSApplication.shared.terminate(nil) }

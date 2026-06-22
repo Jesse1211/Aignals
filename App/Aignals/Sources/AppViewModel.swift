@@ -8,6 +8,7 @@ final class AppViewModel {
     let paths: Paths
     let store: SessionStore
 
+    private let configStore: ConfigStore
     private let watcher: FSEventsWatcher
     private let sweeper: PIDSweeper
 
@@ -18,8 +19,13 @@ final class AppViewModel {
 
         self.paths = paths
         self.store = store
+        self.configStore = ConfigStore(paths: paths)
         self.watcher = FSEventsWatcher(directory: paths.sessionsDirectory, store: store)
         self.sweeper = PIDSweeper(sessionsDirectory: paths.sessionsDirectory, store: store)
+
+        if #available(macOS 13.0, *) {
+            try? LaunchAtLogin.set(configStore.config.launchAtLogin) // re-apply on launch
+        }
 
         watcher.start()
         sweeper.start()
@@ -58,5 +64,22 @@ extension AppViewModel {
 
     var claudeHooksInstalled: Bool {
         HookInstaller().isInstalled(in: claudeSettingsURL)
+    }
+}
+
+extension AppViewModel {
+    var config: AignalsConfig {
+        get { configStore.config }
+        set {
+            configStore.save(newValue)
+            if #available(macOS 13.0, *) {
+                try? LaunchAtLogin.set(newValue.launchAtLogin)
+            }
+        }
+    }
+
+    var launchAtLogin: Bool {
+        get { config.launchAtLogin }
+        set { var c = config; c.launchAtLogin = newValue; config = c }
     }
 }
