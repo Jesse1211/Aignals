@@ -1,19 +1,25 @@
 import AppKit
 
 public enum StatusIcon {
-    public static func image(for status: AggregateStatus) -> NSImage {
+    /// Render the menu-bar dot from the derived multi-status counts plus the
+    /// FS-access health flag (ADR-3/ADR-9). Preserves the old colour mapping:
+    /// any active session → red ("running"), none → green ("idle"),
+    /// FS-access error → gray hollow ring.
+    public static func image(for counts: StatusCounts, hasError: Bool) -> NSImage {
         let size = NSSize(width: 18, height: 18)
         let img = NSImage(size: size, flipped: false) { _ in
             let dotRect = NSRect(x: 4, y: 4, width: 10, height: 10)
             let path = NSBezierPath(ovalIn: dotRect)
-            switch status {
-            case .running: NSColor.systemRed.setFill()
-            case .idle:    NSColor.systemGreen.setFill()
-            case .error:   NSColor.systemGray.setFill()
+            if hasError {
+                NSColor.systemGray.setFill()
+            } else if counts.isEmpty {
+                NSColor.systemGreen.setFill()
+            } else {
+                NSColor.systemRed.setFill()
             }
             path.fill()
 
-            if status == .error {
+            if hasError {
                 // inner hollow ring to distinguish error from a generic gray dot
                 NSColor.black.setStroke()
                 let inner = NSBezierPath(ovalIn: dotRect.insetBy(dx: 2, dy: 2))

@@ -3,7 +3,9 @@ import XCTest
 
 @MainActor
 final class SessionStoreTests: XCTestCase {
-    private func makeSession(id: String, startedAt: Date = Date()) -> Session {
+    private func makeSession(
+        id: String, startedAt: Date = Date(), state: SessionState = .working
+    ) -> Session {
         Session(
             sessionID: id,
             tool: "claude-code",
@@ -12,21 +14,23 @@ final class SessionStoreTests: XCTestCase {
             cwd: nil,
             startedAt: startedAt,
             updatedAt: startedAt,
-            state: .working,
+            state: state,
             currentAction: nil
         )
     }
 
     func testEmptyStoreIsIdle() {
         let store = SessionStore()
-        XCTAssertEqual(store.aggregateStatus, .idle)
+        XCTAssertEqual(store.statusCounts, .zero)
+        XCTAssertFalse(store.hasError)
         XCTAssertTrue(store.sessions.isEmpty)
     }
 
     func testUpsertAddsSession() {
         let store = SessionStore()
         store.upsert(makeSession(id: "a"))
-        XCTAssertEqual(store.aggregateStatus, .running)
+        XCTAssertEqual(store.statusCounts.total, 1)
+        XCTAssertEqual(store.statusCounts.working, 1)
         XCTAssertEqual(store.sessions.count, 1)
     }
 
@@ -66,14 +70,51 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(store.sessions.map(\.sessionID), ["older", "newer"])
     }
 
-    func testErrorStateOverridesIdleAndRunning() {
+    func testHasErrorFlagIsIndependentOfCounts() {
         let store = SessionStore()
         store.setFSAccessError(true)
-        XCTAssertEqual(store.aggregateStatus, .error)
+        XCTAssertTrue(store.hasError)
+        XCTAssertEqual(store.statusCounts, .zero)  // no sessions yet
         store.upsert(makeSession(id: "a"))
-        XCTAssertEqual(store.aggregateStatus, .error)  // error wins
+        XCTAssertTrue(store.hasError)              // error flag still set
+        XCTAssertEqual(store.statusCounts.total, 1)
         store.setFSAccessError(false)
-        XCTAssertEqual(store.aggregateStatus, .running)
+        XCTAssertFalse(store.hasError)
+        XCTAssertEqual(store.statusCounts.total, 1)
+    }
+
+    func testStatusCountsGroupByState() {
+        let store = SessionStore()
+        store.upsert(makeSession(id: "w1", state: .working))
+        store.upsert(makeSession(id: "w2", state: .working))
+        store.upsert(makeSession(id: "p1", state: .waitingPermission))
+        store.upsert(makeSession(id: "i1", state: .waitingInput))
+        let counts = store.statusCounts
+        XCTAssertEqual(counts.working, 2)
+        XCTAssertEqual(counts.waitingPermission, 1)
+        XCTAssertEqual(counts.waitingInput, 1)
+        // INV-4: the three buckets sum to the session count.
+        XCTAssertEqual(counts.total, store.sessions.count)
+    }
+
+    func testUpsertDropsStaleUpdateByUpdatedAt() {
+        let store = SessionStore()
+        let started = Date()
+        let newer = Session(
+            sessionID: "a", tool: "claude-code", pid: 1, projectName: "newer",
+            cwd: nil, startedAt: started, updatedAt: started.addingTimeInterval(10),
+            state: .waitingInput, currentAction: nil
+        )
+        let older = Session(
+            sessionID: "a", tool: "claude-code", pid: 1, projectName: "older",
+            cwd: nil, startedAt: started, updatedAt: started,
+            state: .working, currentAction: nil
+        )
+        store.upsert(newer)
+        store.upsert(older)  // INV-8: stale → dropped
+        XCTAssertEqual(store.sessions.count, 1)
+        XCTAssertEqual(store.sessions.first?.projectName, "newer")
+        XCTAssertEqual(store.sessions.first?.state, .waitingInput)
     }
 
     func testStateChangesPublishedAsAsyncSequence() async {
@@ -81,7 +122,7 @@ final class SessionStoreTests: XCTestCase {
         var iter = store.changes.makeAsyncIterator()
         Task { store.upsert(self.makeSession(id: "a")) }
         let next = await iter.next()
-        XCTAssertEqual(next, .running)
+        XCTAssertEqual(next, StatusCounts(working: 1, waitingPermission: 0, waitingInput: 0))
     }
 }
 

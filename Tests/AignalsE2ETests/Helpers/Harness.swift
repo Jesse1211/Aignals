@@ -73,15 +73,30 @@ final class Harness {
         return p.terminationStatus
     }
 
-    /// Await an aggregate status, polling the store on the main actor.
+    /// Await a derived store condition, polling on the main actor.
     /// (We poll rather than consume `store.changes` because that AsyncStream
     /// is single-consumer and the watcher/sweeper feed it asynchronously.)
-    func waitForStatus(_ status: AggregateStatus, timeout: TimeInterval = 3.0) async -> Bool {
+    func waitUntil(timeout: TimeInterval = 3.0, _ predicate: () -> Bool) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            if store.aggregateStatus == status { return true }
+            if predicate() { return true }
             try? await Task.sleep(nanoseconds: 50_000_000)
         }
-        return store.aggregateStatus == status
+        return predicate()
+    }
+
+    /// old `.running` (sessions present) → nonzero total.
+    func waitForRunning(timeout: TimeInterval = 3.0) async -> Bool {
+        await waitUntil(timeout: timeout) { store.statusCounts.total > 0 }
+    }
+
+    /// old `.idle` (no sessions) → all-zero counts.
+    func waitForIdle(timeout: TimeInterval = 3.0) async -> Bool {
+        await waitUntil(timeout: timeout) { store.statusCounts.isEmpty }
+    }
+
+    /// old `.error` → hasError == true.
+    func waitForError(timeout: TimeInterval = 3.0) async -> Bool {
+        await waitUntil(timeout: timeout) { store.hasError }
     }
 }

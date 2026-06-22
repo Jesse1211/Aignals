@@ -36,7 +36,7 @@ final class LifecycleE2ETests: XCTestCase {
     func test_case01_sessionstartFlipsToRunning() async throws {
         let h = try makeHarness()
         try h.runHook("on-sessionstart", payload: payload(["session_id": "s1", "cwd": "/proj"]))
-        let reachedRunning = await h.waitForStatus(.running)
+        let reachedRunning = await h.waitForRunning()
         XCTAssertTrue(reachedRunning)
         XCTAssertEqual(h.store.sessions.map(\.sessionID), ["s1"])
     }
@@ -44,20 +44,20 @@ final class LifecycleE2ETests: XCTestCase {
     func test_case02_stopReturnsToIdle() async throws {
         let h = try makeHarness()
         try h.runHook("on-sessionstart", payload: payload(["session_id": "s1", "cwd": "/proj"]))
-        let reachedRunning = await h.waitForStatus(.running)
+        let reachedRunning = await h.waitForRunning()
         XCTAssertTrue(reachedRunning)
         try h.runHook("on-stop", payload: payload(["session_id": "s1"]))
-        let reachedIdle = await h.waitForStatus(.idle)
+        let reachedIdle = await h.waitForIdle()
         XCTAssertTrue(reachedIdle)
     }
 
     func test_case03_sessionEndReturnsToIdle() async throws {
         let h = try makeHarness()
         try h.runHook("on-sessionstart", payload: payload(["session_id": "s1", "cwd": "/proj"]))
-        let reachedRunning = await h.waitForStatus(.running)
+        let reachedRunning = await h.waitForRunning()
         XCTAssertTrue(reachedRunning)
         try h.runHook("on-sessionend", payload: payload(["session_id": "s1"]))
-        let reachedIdle = await h.waitForStatus(.idle)
+        let reachedIdle = await h.waitForIdle()
         XCTAssertTrue(reachedIdle)
     }
 
@@ -65,7 +65,7 @@ final class LifecycleE2ETests: XCTestCase {
         let h = try makeHarness()
         try h.runHook("on-sessionstart", payload: payload(["session_id": "a", "cwd": "/A"]))
         try h.runHook("on-sessionstart", payload: payload(["session_id": "b", "cwd": "/B"]))
-        let reachedRunning = await h.waitForStatus(.running)
+        let reachedRunning = await h.waitForRunning()
         XCTAssertTrue(reachedRunning)
         // Wait for both files to land in the store.
         let deadline = Date().addingTimeInterval(2)
@@ -79,14 +79,14 @@ final class LifecycleE2ETests: XCTestCase {
         while Date() < d2, h.store.sessions.count > 1 {
             try? await Task.sleep(nanoseconds: 100_000_000)
         }
-        XCTAssertEqual(h.store.aggregateStatus, .running)
+        XCTAssertTrue(h.store.statusCounts.total > 0)
         XCTAssertEqual(h.store.sessions.map(\.sessionID), ["b"])
     }
 
     func test_case05_pretoolMapsKnownTools() async throws {
         let h = try makeHarness()
         try h.runHook("on-sessionstart", payload: payload(["session_id": "s", "cwd": "/p"]))
-        let reachedRunning = await h.waitForStatus(.running)
+        let reachedRunning = await h.waitForRunning()
         XCTAssertTrue(reachedRunning)
 
         let cases: [(tool: String, input: [String: Any], expectedTarget: String)] = [
@@ -112,7 +112,7 @@ final class LifecycleE2ETests: XCTestCase {
     func test_case06_pretoolUnknownToolKeepsNameAndEmptyTarget() async throws {
         let h = try makeHarness()
         try h.runHook("on-sessionstart", payload: payload(["session_id": "s", "cwd": "/p"]))
-        let reachedRunning = await h.waitForStatus(.running)
+        let reachedRunning = await h.waitForRunning()
         XCTAssertTrue(reachedRunning)
         try h.runHook("on-pretool", payload: payload([
             "session_id": "s", "tool_name": "Mystery", "tool_input": [:],

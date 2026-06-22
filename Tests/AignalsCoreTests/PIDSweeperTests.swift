@@ -47,7 +47,7 @@ final class PIDSweeperTests: XCTestCase {
 
         let store = SessionStore()
         try loadIntoStore(store, from: dir.appendingPathComponent("a.json"))
-        XCTAssertEqual(store.aggregateStatus, .running)
+        XCTAssertEqual(store.statusCounts.total, 1)
 
         let sweeper = PIDSweeper(
             sessionsDirectory: dir,
@@ -57,7 +57,7 @@ final class PIDSweeperTests: XCTestCase {
         sweeper.sweepOnce()
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: dir.appendingPathComponent("a.json").path))
-        XCTAssertEqual(store.aggregateStatus, .idle)
+        XCTAssertEqual(store.statusCounts, .zero)
     }
 
     func testAlivePIDPreservesFile() throws {
@@ -75,7 +75,7 @@ final class PIDSweeperTests: XCTestCase {
         sweeper.sweepOnce()
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: dir.appendingPathComponent("a.json").path))
-        XCTAssertEqual(store.aggregateStatus, .running)
+        XCTAssertEqual(store.statusCounts.total, 1)
     }
 
     func testMissingPIDFallsBackToMtimeOnlyForStaleFile() throws {
@@ -117,11 +117,12 @@ final class PIDSweeperTests: XCTestCase {
         // chmod 000 → unreadable
         try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: dir.path)
         sweeper.sweepOnce()
-        XCTAssertEqual(store.aggregateStatus, .error)
+        XCTAssertTrue(store.hasError)
 
         // restore → recover
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: dir.path)
         sweeper.sweepOnce()
-        XCTAssertEqual(store.aggregateStatus, .idle)
+        XCTAssertFalse(store.hasError)
+        XCTAssertEqual(store.statusCounts, .zero)
     }
 }

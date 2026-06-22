@@ -16,7 +16,7 @@ struct AignalsApp: App {
         MenuBarExtra {
             MenuContent(vm: vm)
         } label: {
-            Image(nsImage: StatusIcon.image(for: vm.store.aggregateStatus))
+            Image(nsImage: StatusIcon.image(for: vm.store.statusCounts, hasError: vm.store.hasError))
         }
         .menuBarExtraStyle(.menu)
 

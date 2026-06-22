@@ -14,7 +14,7 @@ final class FSEventsWatcherTests: XCTestCase {
         defer { watcher.stop() }
 
         try writeSession(id: "a", to: dir)
-        await waitFor(store, status: .running, timeout: 2.0)
+        await waitForNonEmpty(store, timeout: 2.0)
         XCTAssertEqual(store.sessions.map(\.sessionID), ["a"])
     }
 
@@ -29,10 +29,10 @@ final class FSEventsWatcherTests: XCTestCase {
         defer { watcher.stop() }
 
         try writeSession(id: "a", to: dir)
-        await waitFor(store, status: .running, timeout: 2.0)
+        await waitForNonEmpty(store, timeout: 2.0)
 
         try FileManager.default.removeItem(at: dir.appendingPathComponent("a.json"))
-        await waitFor(store, status: .idle, timeout: 2.0)
+        await waitForEmpty(store, timeout: 2.0)
     }
 
     func testIgnoresNonJSONFiles() async throws {
@@ -71,12 +71,28 @@ final class FSEventsWatcherTests: XCTestCase {
         try FileManager.default.moveItem(at: tmp, to: final)
     }
 
-    private func waitFor(_ store: SessionStore, status: AggregateStatus, timeout: TimeInterval) async {
+    /// Await a `StatusCounts` emission satisfying `predicate`, consuming the
+    /// store's `changes` AsyncStream (now typed as `StatusCounts`).
+    private func waitFor(
+        _ store: SessionStore,
+        timeout: TimeInterval,
+        where predicate: @escaping (StatusCounts) -> Bool
+    ) async {
         let deadline = Date().addingTimeInterval(timeout)
-        for await s in store.changes {
-            if s == status { return }
+        for await counts in store.changes {
+            if predicate(counts) { return }
             if Date() > deadline { break }
         }
-        XCTFail("Timed out waiting for status \(status); current = \(store.aggregateStatus)")
+        XCTFail("Timed out; current counts = \(store.statusCounts)")
+    }
+
+    /// old `.running` (sessions present) → nonzero total.
+    private func waitForNonEmpty(_ store: SessionStore, timeout: TimeInterval) async {
+        await waitFor(store, timeout: timeout) { $0.total > 0 }
+    }
+
+    /// old `.idle` (no sessions) → all-zero counts.
+    private func waitForEmpty(_ store: SessionStore, timeout: TimeInterval) async {
+        await waitFor(store, timeout: timeout) { $0.isEmpty }
     }
 }

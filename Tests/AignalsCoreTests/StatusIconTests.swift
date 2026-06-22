@@ -4,8 +4,13 @@ import AppKit
 
 final class StatusIconTests: XCTestCase {
     func testEachStateProducesNonTemplate18ptImage() {
-        for state in [AggregateStatus.idle, .running, .error] {
-            let img = StatusIcon.image(for: state)
+        let cases: [(counts: StatusCounts, hasError: Bool)] = [
+            (.zero, false),                                                   // idle
+            (StatusCounts(working: 1, waitingPermission: 0, waitingInput: 0), false), // running
+            (.zero, true),                                                   // error
+        ]
+        for c in cases {
+            let img = StatusIcon.image(for: c.counts, hasError: c.hasError)
             XCTAssertEqual(img.size, NSSize(width: 18, height: 18))
             XCTAssertFalse(img.isTemplate, "Status images must keep their own color")
         }

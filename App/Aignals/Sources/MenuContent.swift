@@ -19,7 +19,7 @@ struct MenuContent: View {
     private let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        if vm.store.aggregateStatus == .error {
+        if vm.store.hasError {
             Label("Cannot read ~/.aignals", systemImage: "exclamationmark.triangle")
             Button("Reveal in Finder") { vm.revealAignalsHome() }
             Divider()

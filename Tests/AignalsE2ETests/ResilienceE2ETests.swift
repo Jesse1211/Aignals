@@ -37,10 +37,10 @@ final class ResilienceE2ETests: XCTestCase {
         """
         try Data(json.utf8).write(to: file)
         h.store.loadFromDisk(path: file)
-        XCTAssertEqual(h.store.aggregateStatus, .running)
+        XCTAssertTrue(h.store.statusCounts.total > 0)
 
         await waitUntilGone(file, store: h.store)
-        XCTAssertEqual(h.store.aggregateStatus, .idle)
+        XCTAssertTrue(h.store.statusCounts.isEmpty)
         XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
     }
 
@@ -57,7 +57,7 @@ final class ResilienceE2ETests: XCTestCase {
         h.store.loadFromDisk(path: file)
 
         await waitUntilGone(file, store: h.store)
-        XCTAssertEqual(h.store.aggregateStatus, .idle)
+        XCTAssertTrue(h.store.statusCounts.isEmpty)
         XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
     }
 
@@ -67,7 +67,7 @@ final class ResilienceE2ETests: XCTestCase {
         try Data("not json".utf8).write(to: file)
         try await Task.sleep(nanoseconds: 800_000_000)
         XCTAssertTrue(h.store.sessions.isEmpty)
-        XCTAssertEqual(h.store.aggregateStatus, .idle)
+        XCTAssertTrue(h.store.statusCounts.isEmpty)
     }
 
     func test_case10_unknownSchemaVersionIgnored() async throws {
@@ -79,14 +79,14 @@ final class ResilienceE2ETests: XCTestCase {
         try Data(json.utf8).write(to: file)
         try await Task.sleep(nanoseconds: 800_000_000)
         XCTAssertTrue(h.store.sessions.isEmpty)
-        XCTAssertEqual(h.store.aggregateStatus, .idle)
+        XCTAssertTrue(h.store.statusCounts.isEmpty)
     }
 
     func test_case11_atomicRenameProducesOneEvent() async throws {
         let h = try makeHarness()
         // Producer writes via tmp+mv (this is what aignals-hook does):
         try h.runHook("on-sessionstart", payload: "{\"session_id\":\"atom\",\"cwd\":\"/p\"}")
-        let reachedRunning = await h.waitForStatus(.running)
+        let reachedRunning = await h.waitForRunning()
         XCTAssertTrue(reachedRunning)
         // After running, no .tmp files should remain in the dir.
         let entries = try FileManager.default.contentsOfDirectory(
@@ -100,13 +100,13 @@ final class ResilienceE2ETests: XCTestCase {
         // chmod 000 the sessions dir → sweeper's FS-access probe flips to .error.
         try FileManager.default.setAttributes(
             [.posixPermissions: 0o000], ofItemAtPath: h.paths.sessionsDirectory.path)
-        let reachedError = await h.waitForStatus(.error)
+        let reachedError = await h.waitForError()
         XCTAssertTrue(reachedError)
 
         // restore
         try FileManager.default.setAttributes(
             [.posixPermissions: 0o700], ofItemAtPath: h.paths.sessionsDirectory.path)
-        let reachedIdle = await h.waitForStatus(.idle)
+        let reachedIdle = await h.waitForIdle()
         XCTAssertTrue(reachedIdle)
     }
 }
