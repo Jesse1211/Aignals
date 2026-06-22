@@ -31,8 +31,9 @@ tasks modify the very files v1 is changing (`SessionState`, `PIDSweeper`, `MenuC
 
 ## 2. Value objects / entities (v2 additions)
 
-- `SessionOverride` = **Value Object**: `{ name: String?, order: Int? }`, keyed by `session_id`. No
-  independent lifecycle — a user annotation on a Session; cleaned when the Session is truly deleted.
+- `SessionOverride` = **Value Object**: `{ name: String?, order: Int?, pinned: Bool }`, keyed by
+  `session_id`. No independent lifecycle — a user annotation on a Session; cleaned when the Session is
+  truly deleted. `pinned` is the "ping → keep on top" flag (ADR-19).
 - `OverrideStore` = repository persisting `[session_id: SessionOverride]` to `~/.aignals/overrides.json`
   (atomic write, malformed → empty), analogous to v1's `ConfigStore`. Not an aggregate root.
 - `SessionState` gains a 4th case `.disconnected` (gray). Value object, as in v1. (ADR-13)
@@ -59,8 +60,9 @@ exits (`/exit`, `/clear`, logout) fire `SessionEnd`. So gray can ONLY be entered
 - **INV-9:** user preferences (name/order) are NEVER written to a session file — only to OverrideStore.
 - **INV-10:** when a session is truly deleted (SessionEnd, or user dismisses a gray light), its override
   is cleaned (no orphan accumulation).
-- **INV-11:** ordering — sessions with an `override.order` sort by it; those without sort after, by
-  `startedAt`. Order is stable for the user.
+- **INV-11:** ordering — **pinned sessions sort first** (newest pinned on top), then sessions with an
+  `override.order` by it, then the rest by `startedAt`. A pinned session stays on top regardless of its
+  state changing. Order is stable for the user.
 - **INV-12:** `.disconnected` is entered ONLY by PIDSweeper polling (pid dead), never by a hook event.
   A subsequent hook event for that session naturally overwrites gray back to a live state (no special
   recovery logic needed — the timestamped write corrects it).
@@ -83,6 +85,11 @@ exits (`/exit`, `/clear`, logout) fire `SessionEnd`. So gray can ONLY be entered
   SwiftUI timers don't fire, no text input, no drag) cannot provide. Verified in v1.*
 - **ADR-18:** Effective display name = `override.name ?? projectName` (derived, not stored).
   *Keeps the Session aggregate uncontaminated by preferences.*
+- **ADR-19 (ping / pin):** A session can be **pinned** ("ping") by the user to keep it on top. `pinned:Bool`
+  lives in `SessionOverride` (OverrideStore), toggled by a pin button on the row. Pinned rows sort above
+  all others and stay there regardless of state changes (INV-11). *"被 ping 就置顶" — modeled as a
+  user-driven pin, not an external event; reuses the OverrideStore side-car, no new hook. Implemented
+  LAST per the user's request (folded into V3 as an additive final piece).*
 
 ## 6. Open Questions
 
@@ -103,9 +110,9 @@ V2 (.disconnected state + PIDSweeper poll → gray)
 
 | Task | depends_on | Spec | Acceptance gate |
 |---|---|---|---|
-| **V1** | — | In `Sources/AignalsCore`: `SessionOverride` value object `{name:String?, order:Int?}` (Equatable, Sendable, Codable) + `OverrideStore` persisting `[String: SessionOverride]` to `~/.aignals/overrides.json` via `Paths` (atomic temp+replace; malformed → empty `[:]`; honors AIGNALS_HOME). API: `setName(_:for:)`, `setOrder(_:for:)`, `remove(for:)`, `override(for:) -> SessionOverride?`, and `prune(keepingIDs:)` to drop orphans. Pure logic, SPM-testable. | `swift test --filter OverrideStoreTests`: round-trips name+order; `remove`/`prune` drop entries; malformed file → empty defaults (no crash); writes atomic; honors AIGNALS_HOME (INV-9/INV-10). |
+| **V1** | — | In `Sources/AignalsCore`: `SessionOverride` value object `{name:String?, order:Int?, pinned:Bool}` (Equatable, Sendable, Codable; `pinned` defaults false) + `OverrideStore` persisting `[String: SessionOverride]` to `~/.aignals/overrides.json` via `Paths` (atomic temp+replace; malformed → empty `[:]`; honors AIGNALS_HOME). API: `setName(_:for:)`, `setOrder(_:for:)`, `setPinned(_:for:)`, `remove(for:)`, `override(for:) -> SessionOverride?`, and `prune(keepingIDs:)` to drop orphans. Pure logic, SPM-testable. | `swift test --filter OverrideStoreTests`: round-trips name+order+pinned; `remove`/`prune` drop entries; malformed file → empty defaults (no crash); writes atomic; honors AIGNALS_HOME (INV-9/INV-10). |
 | **V2** | — | `SessionState` gains `.disconnected` (it must parse/serialize the string `"disconnected"` for symmetry, BUT NOTE: `.disconnected` is set by the APP (PIDSweeper), never written by `aignals-hook` — the hook never knows a session died passively, so NO new hook subcommand is added here, INV-12). Change `PIDSweeper`: when `kill(pid,0)` shows a pid dead, instead of removing the session from the store, set its in-memory `state` to `.disconnected` (keep it present). The `SessionEnd`/file-delete path is unchanged (still removes). `StatusCounts` may optionally surface a disconnected count, but the menu-bar label spec stays `🔴x 🟡y 🟢z` (gray is shown in the dropdown, not necessarily the label) — keep the label unchanged unless trivially additive. | `swift test --filter PIDSweeperTests` (rewritten): a session whose pid is dead becomes `state == .disconnected` AND is still present in the store (NOT removed); a live-pid session is untouched; the SessionEnd/delete path still removes (ADR-14/INV-12). |
-| **V3** | V1, V2 | UI rewrite (files under `App/Aignals/Sources/`). `AignalsApp.swift`: change `.menuBarExtraStyle(.menu)` → `.window`. Rewrite `MenuContent` as a custom SwiftUI view: a minimal vertical list, one row per session = [state color dot incl. gray] + [editable name field showing `override.name ?? projectName`, committing via `OverrideStore.setName`] + [what it's doing subtitle] + [elapsed time that **ticks live every 1s** while open — works now because `.window` is a real SwiftUI view, not a modal NSMenu] + [a remove ✕ button, shown for `.disconnected` rows, calling delete+`OverrideStore.remove`]. Rows are **drag-reorderable**, persisting `order` via `OverrideStore.setOrder`; new sessions appear at the top (INV-11/ADR-16). Keep the menu-bar label (`StatusIcon` count image) unchanged. Keep existing actions (Install hooks/CLI, Open, About, Launch at Login, Quit) present, restyled for `.window`. Minimal aesthetic — no extra info. | `BUILD_CMD` → `** BUILD SUCCEEDED **`. Manual smoke (no SPM test for UI): open dropdown → elapsed ticks live every second; rename a row → persists across reopen (overrides.json updated); drag reorder → persists; a gray (disconnected) row shows the ✕ and removing it deletes the session + its override. |
+| **V3** | V1, V2 | UI rewrite (files under `App/Aignals/Sources/`). `AignalsApp.swift`: change `.menuBarExtraStyle(.menu)` → `.window`. Rewrite `MenuContent` as a custom SwiftUI view: a minimal vertical list, one row per session = [state color dot incl. gray] + [editable name field showing `override.name ?? projectName`, committing via `OverrideStore.setName`] + [what it's doing subtitle] + [elapsed time that **ticks live every 1s** while open — works now because `.window` is a real SwiftUI view, not a modal NSMenu] + [a remove ✕ button, shown for `.disconnected` rows, calling delete+`OverrideStore.remove`]. Rows are **drag-reorderable**, persisting `order` via `OverrideStore.setOrder`; new sessions appear at the top (INV-11/ADR-16). **Add LAST (ADR-19): a pin button on each row toggling `OverrideStore.setPinned`; pinned rows sort above all others and stay on top through state changes.** Keep the menu-bar label (`StatusIcon` count image) unchanged. Keep existing actions (Install hooks/CLI, Open, About, Launch at Login, Quit) present, restyled for `.window`. Minimal aesthetic — no extra info. | `BUILD_CMD` → `** BUILD SUCCEEDED **`. Manual smoke (no SPM test for UI): open dropdown → elapsed ticks live every second; rename a row → persists across reopen (overrides.json updated); drag reorder → persists; pinning a row keeps it on top across reopen + state changes; a gray (disconnected) row shows the ✕ and removing it deletes the session + its override. |
 
 ## 8. Global commands
 
