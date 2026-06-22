@@ -145,6 +145,40 @@ extension SessionStoreTests {
         XCTAssertEqual(store.sessions.map(\.sessionID), ["a"])
     }
 
+    /// H1 / INV-8 end-to-end: two same-second updates that differ only in
+    /// milliseconds must order correctly through loadFromDisk → decode → upsert's
+    /// `updatedAt >` guard. The store compares Dates, so this proves millisecond
+    /// precision flows all the way through. Loading the EARLIER-ms file after the
+    /// later one must be dropped as stale; loading the later one over the earlier
+    /// one must apply.
+    func testMillisecondPrecisionFlowsThroughStaleGuard() throws {
+        func writeFile(_ ts: String, state: String) throws -> URL {
+            let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+                .appendingPathComponent("aignals-ms-\(UUID().uuidString).json")
+            let json = """
+            {"schema_version":2,"session_id":"a","tool":"t","project_name":"p",
+             "state":"\(state)","started_at":"\(ts)","updated_at":"\(ts)"}
+            """
+            try Data(json.utf8).write(to: tmp)
+            return tmp
+        }
+        let early = try writeFile("2026-06-22T13:51:33.100Z", state: "working")
+        let late  = try writeFile("2026-06-22T13:51:33.900Z", state: "waiting_input")
+        defer { try? FileManager.default.removeItem(at: early); try? FileManager.default.removeItem(at: late) }
+
+        let store = SessionStore()
+        store.loadFromDisk(path: late)          // newer ms wins
+        store.loadFromDisk(path: early)         // same second, earlier ms → dropped
+        XCTAssertEqual(store.sessions.first?.state, .waitingInput,
+                       "earlier-millisecond same-second update must be dropped as stale")
+
+        let store2 = SessionStore()
+        store2.loadFromDisk(path: early)        // older first
+        store2.loadFromDisk(path: late)         // later ms applies
+        XCTAssertEqual(store2.sessions.first?.state, .waitingInput,
+                       "later-millisecond same-second update must apply")
+    }
+
     func testLoadFromDiskIgnoresMalformed() throws {
         let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("aignals-store-\(UUID().uuidString).json")

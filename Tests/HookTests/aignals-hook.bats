@@ -16,9 +16,12 @@ teardown() { rm -rf "$TMP"; }
     "$AIGNALS_HOME/sessions/s1.json"
 }
 
-@test "on-sessionstart sets updated_at (ISO8601)" {
+@test "on-sessionstart sets updated_at (ISO8601, millisecond precision)" {
   echo '{"session_id":"s1","cwd":"/p"}' | "$HOOK" on-sessionstart
-  jq -e '.updated_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")' \
+  # now_iso stamps millisecond precision (INV-8 same-second reorder defense).
+  # The perl/Time::HiRes path emits real milliseconds; the date fallback emits
+  # ".000Z". Either way the form is YYYY-MM-DDTHH:MM:SS.mmmZ.
+  jq -e '.updated_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[.][0-9]{3}Z$")' \
     "$AIGNALS_HOME/sessions/s1.json"
 }
 
@@ -135,6 +138,37 @@ JSON
   echo '{"session_id":"s1"}' | "$HOOK" on-prompt
   jq -e '.state == "working" and (.updated_at > "2000-01-01T00:00:00Z")' \
     "$AIGNALS_HOME/sessions/s1.json"
+}
+
+@test "INV-8 same-second: a stored later-millisecond stamp drops an earlier same-second write" {
+  mkdir -p "$AIGNALS_HOME/sessions"
+  # Seed updated_at at the CURRENT wall-clock second but with .999 milliseconds,
+  # so the real incoming now_iso (same second, far fewer ms) is lexically older
+  # and MUST be dropped. With the old second-granular stamp this tie would have
+  # been (incorrectly) applied. This is the core INV-8 same-second guarantee.
+  sec="$(date -u +"%Y-%m-%dT%H:%M:%S")"
+  cat > "$AIGNALS_HOME/sessions/s1.json" <<JSON
+{"schema_version":2,"session_id":"s1","tool":"claude-code","project_name":"p","state":"waiting_permission","started_at":"${sec}.999Z","updated_at":"${sec}.999Z"}
+JSON
+  before="$(cat "$AIGNALS_HOME/sessions/s1.json")"
+  run bash -c "echo '{\"session_id\":\"s1\"}' | \"$HOOK\" on-prompt"
+  [ "$status" -eq 0 ]
+  after="$(cat "$AIGNALS_HOME/sessions/s1.json")"
+  # Same-second-but-earlier-ms write dropped: file byte-identical, state unchanged.
+  [ "$before" = "$after" ]
+  jq -e '.state == "waiting_permission"' "$AIGNALS_HOME/sessions/s1.json"
+}
+
+@test "INV-8 same-second: a stored earlier-millisecond stamp lets a later same-second write apply" {
+  mkdir -p "$AIGNALS_HOME/sessions"
+  # Same second, .000 milliseconds: the real incoming now_iso (same second, >=0 ms)
+  # is >= stored, so the write applies. Proves millisecond stamps don't over-reject.
+  sec="$(date -u +"%Y-%m-%dT%H:%M:%S")"
+  cat > "$AIGNALS_HOME/sessions/s1.json" <<JSON
+{"schema_version":2,"session_id":"s1","tool":"claude-code","project_name":"p","state":"waiting_input","started_at":"${sec}.000Z","updated_at":"${sec}.000Z"}
+JSON
+  echo '{"session_id":"s1"}' | "$HOOK" on-prompt
+  jq -e '.state == "working"' "$AIGNALS_HOME/sessions/s1.json"
 }
 
 @test "writes are atomic (no .tmp leftover after success)" {

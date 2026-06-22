@@ -132,6 +132,115 @@ final class HookInstallerTests: XCTestCase {
         XCTAssertTrue(installer.isInstalled(in: file))
     }
 
+    /// H2 regression: a hook installed with an ABSOLUTE path
+    /// (e.g. "/Users/x/.local/bin/aignals-hook on-stop") must be recognized as
+    /// already-present, so re-installing does NOT append a duplicate bare-command
+    /// entry. Before the suffix-match fix, mergeEvent compared the full string and
+    /// appended a second entry. Verify exactly one Stop hook command afterwards.
+    func testReinstallOverAbsolutePathDoesNotDuplicate() throws {
+        let file = tmpFile()
+        defer { try? FileManager.default.removeItem(at: file) }
+
+        let absolute = "/Users/x/.local/bin/aignals-hook on-stop"
+        let existing: [String: Any] = [
+            "hooks": [
+                "Stop": [
+                    ["hooks": [["type": "command", "command": absolute]]]
+                ]
+            ]
+        ]
+        try JSONSerialization.data(withJSONObject: existing, options: .prettyPrinted).write(to: file)
+
+        let installer = HookInstaller()
+        // An absolute-path Stop hook should already read as installed for that command.
+        try installer.install(into: file)
+
+        let json = try readJSON(file)
+        let stopCommands = commands(in: json, event: "Stop")
+        // The absolute entry is preserved and NO bare "aignals-hook on-stop" was added.
+        XCTAssertTrue(stopCommands.contains(absolute), "absolute-path entry must be preserved")
+        XCTAssertFalse(stopCommands.contains("aignals-hook on-stop"),
+                       "must not append a duplicate bare-command entry")
+        XCTAssertEqual(stopCommands.count, 1, "exactly one Stop hook command expected, got \(stopCommands)")
+    }
+
+    /// H2: isInstalled must treat an absolute-path entry as installed (suffix match).
+    func testIsInstalledRecognizesAbsolutePathEntries() throws {
+        let file = tmpFile()
+        defer { try? FileManager.default.removeItem(at: file) }
+        // Build a fully-installed file, then rewrite every command to an absolute path.
+        try HookInstaller().install(into: file)
+        var json = try readJSON(file)
+        var hooks = json["hooks"] as! [String: Any]
+        for (event, value) in hooks {
+            guard var arr = value as? [[String: Any]] else { continue }
+            for i in arr.indices {
+                guard var inner = arr[i]["hooks"] as? [[String: Any]] else { continue }
+                for j in inner.indices {
+                    if let c = inner[j]["command"] as? String {
+                        inner[j]["command"] = "/abs/prefix/" + c
+                    }
+                }
+                arr[i]["hooks"] = inner
+            }
+            hooks[event] = arr
+        }
+        json["hooks"] = hooks
+        try JSONSerialization.data(withJSONObject: json).write(to: file)
+
+        XCTAssertTrue(HookInstaller().isInstalled(in: file),
+                      "absolute-path commands must still report installed")
+    }
+
+    /// H3 regression: a Notification entry whose command is present but whose
+    /// `matcher` is WRONG (or missing) must report isInstalled == false, because
+    /// Claude Code routes Notification hooks by notification_type — a mis-routed
+    /// entry would never fire. The two variants (permission_prompt / idle_prompt)
+    /// must be distinguished by matcher, not command alone.
+    func testWrongNotificationMatcherReportsNotInstalled() throws {
+        let file = tmpFile()
+        defer { try? FileManager.default.removeItem(at: file) }
+        // Fully install, then corrupt ONLY the on-idle Notification entry's matcher.
+        try HookInstaller().install(into: file)
+        var json = try readJSON(file)
+        var hooks = json["hooks"] as! [String: Any]
+        var notifications = hooks["Notification"] as! [[String: Any]]
+        for i in notifications.indices {
+            let inner = (notifications[i]["hooks"] as? [[String: Any]]) ?? []
+            if inner.contains(where: { ($0["command"] as? String) == "aignals-hook on-idle" }) {
+                notifications[i]["matcher"] = "wrong_type"   // should be idle_prompt
+            }
+        }
+        hooks["Notification"] = notifications
+        json["hooks"] = hooks
+        try JSONSerialization.data(withJSONObject: json).write(to: file)
+
+        XCTAssertFalse(HookInstaller().isInstalled(in: file),
+                       "a Notification entry with the wrong matcher must report not-installed")
+    }
+
+    /// H3: a missing matcher on a Notification entry must also report not-installed.
+    func testMissingNotificationMatcherReportsNotInstalled() throws {
+        let file = tmpFile()
+        defer { try? FileManager.default.removeItem(at: file) }
+        try HookInstaller().install(into: file)
+        var json = try readJSON(file)
+        var hooks = json["hooks"] as! [String: Any]
+        var notifications = hooks["Notification"] as! [[String: Any]]
+        for i in notifications.indices {
+            let inner = (notifications[i]["hooks"] as? [[String: Any]]) ?? []
+            if inner.contains(where: { ($0["command"] as? String) == "aignals-hook on-permission" }) {
+                notifications[i].removeValue(forKey: "matcher")
+            }
+        }
+        hooks["Notification"] = notifications
+        json["hooks"] = hooks
+        try JSONSerialization.data(withJSONObject: json).write(to: file)
+
+        XCTAssertFalse(HookInstaller().isInstalled(in: file),
+                       "a Notification entry with a missing matcher must report not-installed")
+    }
+
     func testMalformedExistingFileThrows() throws {
         let file = tmpFile()
         defer { try? FileManager.default.removeItem(at: file) }
