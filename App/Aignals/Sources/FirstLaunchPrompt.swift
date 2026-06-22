@@ -3,16 +3,22 @@ import AignalsCore
 
 /// First-launch install prompt (spec §7).
 ///
-/// Shown at most once per machine: if the user dismisses with "Later" we set a
-/// `UserDefaults` flag so it never re-appears. We use `UserDefaults` here as a
-/// stopgap; Phase 10 introduces `ConfigStore.dismissedInstallPrompt` and this
-/// prompt migrates to read/write that field instead.
+/// Shown at most once per machine. Dismissal state lives in
+/// `ConfigStore.dismissedInstallPrompt` (Phase 10). A one-shot migration reads
+/// the Phase 9 `UserDefaults` stopgap key, copies it into config, then removes
+/// the legacy key.
 @MainActor
 enum FirstLaunchPrompt {
-    private static let defaultsKey = "aignals.dismissedInstallPrompt"
+    private static let legacyKey = "aignals.dismissedInstallPrompt"
 
     static func maybeShow(viewModel: AppViewModel) {
-        if UserDefaults.standard.bool(forKey: defaultsKey) { return }
+        // One-shot migration from the Phase 9 UserDefaults stopgap.
+        if UserDefaults.standard.bool(forKey: legacyKey), !viewModel.config.dismissedInstallPrompt {
+            var c = viewModel.config; c.dismissedInstallPrompt = true; viewModel.config = c
+            UserDefaults.standard.removeObject(forKey: legacyKey)
+        }
+
+        if viewModel.config.dismissedInstallPrompt { return }
         if viewModel.claudeHooksInstalled { return }
 
         let alert = NSAlert()
@@ -24,7 +30,7 @@ enum FirstLaunchPrompt {
         if choice == .alertFirstButtonReturn {
             try? viewModel.installClaudeHooks()
         } else {
-            UserDefaults.standard.set(true, forKey: defaultsKey)
+            var c = viewModel.config; c.dismissedInstallPrompt = true; viewModel.config = c
         }
     }
 }
