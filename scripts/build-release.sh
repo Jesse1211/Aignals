@@ -8,6 +8,9 @@ DERIVED="./build"
 APP="$DERIVED/Build/Products/Release/Aignals.app"
 
 rm -rf "$DERIVED" dist
+# The .xcodeproj is a gitignored XcodeGen artifact; regenerate it so this
+# script works on a fresh clone (and picks up any project.yml changes).
+(cd App/Aignals && xcodegen generate)
 xcodebuild -project "$PROJ" -scheme "$SCHEME" -configuration Release -derivedDataPath "$DERIVED" build
 test -x "$APP/Contents/Resources/aignals-hook"
 
