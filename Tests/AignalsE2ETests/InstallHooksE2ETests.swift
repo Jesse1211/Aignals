@@ -4,13 +4,30 @@ import XCTest
 @MainActor
 final class InstallHooksE2ETests: XCTestCase {
 
-    // Case 13 lands in phase-09 (InstallHooksCommand). Until then it's skipped so
-    // CI stays green; phase-09 flips AIGNALS_PHASE9_DONE=1 in the workflow to unskip.
+    // Case 13: phase-09 implemented HookInstaller, so the gate is removed.
     func test_case13_installHooksMergeIdempotent() throws {
-        try XCTSkipUnless(
-            ProcessInfo.processInfo.environment["AIGNALS_PHASE9_DONE"] == "1",
-            "InstallHooks tests are gated until phase-09 ships")
-        XCTFail("phase-09 must implement InstallHooksCommand and flip the gate env var")
+        let file = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("settings-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: file) }
+
+        let existing: [String: Any] = [
+            "hooks": [
+                "PreToolUse": [
+                    ["matcher": "Bash", "hooks": [["type": "command", "command": "user-bash-watch"]]]
+                ]
+            ]
+        ]
+        try JSONSerialization.data(withJSONObject: existing, options: .prettyPrinted).write(to: file)
+
+        let installer = HookInstaller()
+        try installer.install(into: file)
+        try installer.install(into: file)  // idempotent
+
+        XCTAssertTrue(installer.isInstalled(in: file))
+        let data = try Data(contentsOf: file)
+        let root = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let pretool = (root["hooks"] as! [String: Any])["PreToolUse"] as! [[String: Any]]
+        XCTAssertTrue(pretool.contains { ($0["matcher"] as? String) == "Bash" })
     }
 
     func test_case14_hookExitsZeroWhenJqMissing() throws {
