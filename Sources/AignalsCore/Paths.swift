@@ -20,6 +20,10 @@ public struct Paths: Sendable {
         home.appendingPathComponent("config.json")
     }
 
+    public var overridesFile: URL {
+        home.appendingPathComponent("overrides.json")
+    }
+
     public func sessionFile(id: String) -> URL {
         sessionsDirectory.appendingPathComponent("\(id).json")
     }
