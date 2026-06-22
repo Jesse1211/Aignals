@@ -86,13 +86,23 @@ struct MenuContent: View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
                 Circle()
-                    .fill(.red)
+                    .fill(Self.dotColor(for: s.state))
                     .frame(width: 8, height: 8)
                 Text(s.projectName)
             }
             Text(subtitle(for: s))
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    /// Per-session status dot colour (ADR-9 multi-status): working→red,
+    /// waitingPermission→yellow, waitingInput→green.
+    private static func dotColor(for state: SessionState) -> Color {
+        switch state {
+        case .working: return .red
+        case .waitingPermission: return .yellow
+        case .waitingInput: return .green
         }
     }
 
