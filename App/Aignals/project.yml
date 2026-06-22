@@ -4,6 +4,9 @@ options:
   deploymentTarget:
     macOS: "14.0"
   createIntermediateGroups: true
+  # Pin to the Xcode 15.x project format. Newer XcodeGen defaults to
+  # xcode16_0 (objectVersion 77), which Xcode 15.4 cannot open.
+  projectFormat: xcode15_3
 
 packages:
   AignalsCore:

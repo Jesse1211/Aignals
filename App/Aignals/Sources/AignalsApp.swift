@@ -8,6 +8,7 @@ import AignalsCore
 /// running→red, idle→green, error→gray ring, `isTemplate=false`), and the
 /// dropdown is driven by `MenuContent` bound to the shared `AppViewModel`.
 @main
+@MainActor
 struct AignalsApp: App {
     @State private var vm = AppViewModel()
 
