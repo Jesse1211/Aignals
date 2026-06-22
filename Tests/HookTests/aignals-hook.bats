@@ -8,11 +8,17 @@ setup() {
 
 teardown() { rm -rf "$TMP"; }
 
-@test "on-sessionstart writes a valid session file" {
+@test "on-sessionstart writes a valid schema-v2 session file (state=waiting_input)" {
   run bash -c "echo '{\"session_id\":\"s1\",\"cwd\":\"/proj\"}' | \"$HOOK\" on-sessionstart"
   [ "$status" -eq 0 ]
   [ -f "$AIGNALS_HOME/sessions/s1.json" ]
-  jq -e '.schema_version == 1 and .session_id == "s1" and .tool == "claude-code"' \
+  jq -e '.schema_version == 2 and .session_id == "s1" and .tool == "claude-code" and .state == "waiting_input"' \
+    "$AIGNALS_HOME/sessions/s1.json"
+}
+
+@test "on-sessionstart sets updated_at (ISO8601)" {
+  echo '{"session_id":"s1","cwd":"/p"}' | "$HOOK" on-sessionstart
+  jq -e '.updated_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")' \
     "$AIGNALS_HOME/sessions/s1.json"
 }
 
@@ -22,10 +28,10 @@ teardown() { rm -rf "$TMP"; }
   [ "$perms" = "700" ]
 }
 
-@test "on-pretool sets current_action for Bash" {
+@test "on-pretool sets state=working and current_action for Bash" {
   echo '{"session_id":"s1","cwd":"/p"}' | "$HOOK" on-sessionstart
   echo '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"npm test"}}' | "$HOOK" on-pretool
-  jq -e '.current_action.tool == "Bash" and .current_action.target == "npm test"' \
+  jq -e '.state == "working" and .schema_version == 2 and .current_action.tool == "Bash" and .current_action.target == "npm test"' \
     "$AIGNALS_HOME/sessions/s1.json"
 }
 
@@ -47,16 +53,88 @@ teardown() { rm -rf "$TMP"; }
   [ ! -f "$AIGNALS_HOME/sessions/ghost.json" ]
 }
 
-@test "on-stop deletes the session file" {
-  echo '{"session_id":"s1"}' | "$HOOK" on-sessionstart
+@test "on-prompt sets state=working" {
+  echo '{"session_id":"s1","cwd":"/p"}' | "$HOOK" on-sessionstart
+  echo '{"session_id":"s1"}' | "$HOOK" on-prompt
+  jq -e '.state == "working" and .schema_version == 2' "$AIGNALS_HOME/sessions/s1.json"
+}
+
+@test "on-prompt is a no-op when session file is absent" {
+  echo '{"session_id":"ghost"}' | "$HOOK" on-prompt
+  [ ! -f "$AIGNALS_HOME/sessions/ghost.json" ]
+}
+
+@test "on-posttool sets state=working" {
+  echo '{"session_id":"s1","cwd":"/p"}' | "$HOOK" on-sessionstart
+  echo '{"session_id":"s1"}' | "$HOOK" on-posttool
+  jq -e '.state == "working"' "$AIGNALS_HOME/sessions/s1.json"
+}
+
+@test "on-permission sets state=waiting_permission" {
+  echo '{"session_id":"s1","cwd":"/p"}' | "$HOOK" on-sessionstart
+  echo '{"session_id":"s1"}' | "$HOOK" on-permission
+  jq -e '.state == "waiting_permission"' "$AIGNALS_HOME/sessions/s1.json"
+}
+
+@test "on-permission-denied sets state=working" {
+  echo '{"session_id":"s1","cwd":"/p"}' | "$HOOK" on-sessionstart
+  echo '{"session_id":"s1"}' | "$HOOK" on-permission
+  echo '{"session_id":"s1"}' | "$HOOK" on-permission-denied
+  jq -e '.state == "working"' "$AIGNALS_HOME/sessions/s1.json"
+}
+
+@test "on-idle sets state=waiting_input" {
+  echo '{"session_id":"s1","cwd":"/p"}' | "$HOOK" on-sessionstart
+  echo '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"x"}}' | "$HOOK" on-pretool
+  echo '{"session_id":"s1"}' | "$HOOK" on-idle
+  jq -e '.state == "waiting_input"' "$AIGNALS_HOME/sessions/s1.json"
+}
+
+@test "on-stop keeps the file and sets state=waiting_input" {
+  echo '{"session_id":"s1","cwd":"/p"}' | "$HOOK" on-sessionstart
+  echo '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"x"}}' | "$HOOK" on-pretool
   echo '{"session_id":"s1"}' | "$HOOK" on-stop
-  [ ! -f "$AIGNALS_HOME/sessions/s1.json" ]
+  [ -f "$AIGNALS_HOME/sessions/s1.json" ]
+  jq -e '.state == "waiting_input" and .schema_version == 2' "$AIGNALS_HOME/sessions/s1.json"
+}
+
+@test "on-stop is a no-op when session file is absent" {
+  echo '{"session_id":"ghost"}' | "$HOOK" on-stop
+  [ ! -f "$AIGNALS_HOME/sessions/ghost.json" ]
 }
 
 @test "on-sessionend deletes the session file" {
   echo '{"session_id":"s1"}' | "$HOOK" on-sessionstart
   echo '{"session_id":"s1"}' | "$HOOK" on-sessionend
   [ ! -f "$AIGNALS_HOME/sessions/s1.json" ]
+}
+
+@test "INV-8: a write carrying an older updated_at than stored is dropped (file unchanged)" {
+  mkdir -p "$AIGNALS_HOME/sessions"
+  # Seed a file whose updated_at is far in the FUTURE. Any real subcommand's
+  # incoming timestamp (now_iso) is older, so the write must be dropped and the
+  # file must stay byte-for-byte identical.
+  cat > "$AIGNALS_HOME/sessions/s1.json" <<'JSON'
+{"schema_version":2,"session_id":"s1","tool":"claude-code","project_name":"p","state":"waiting_permission","started_at":"2999-01-01T00:00:00Z","updated_at":"2999-01-01T00:00:00Z"}
+JSON
+  before="$(cat "$AIGNALS_HOME/sessions/s1.json")"
+  run bash -c "echo '{\"session_id\":\"s1\"}' | \"$HOOK\" on-prompt"
+  [ "$status" -eq 0 ]
+  after="$(cat "$AIGNALS_HOME/sessions/s1.json")"
+  [ "$before" = "$after" ]
+  # state stays the seeded one, NOT working
+  jq -e '.state == "waiting_permission"' "$AIGNALS_HOME/sessions/s1.json"
+}
+
+@test "INV-8: a write with an equal-or-newer updated_at is applied" {
+  mkdir -p "$AIGNALS_HOME/sessions"
+  # Seed a file whose updated_at is in the PAST so the incoming now_iso is newer.
+  cat > "$AIGNALS_HOME/sessions/s1.json" <<'JSON'
+{"schema_version":2,"session_id":"s1","tool":"claude-code","project_name":"p","state":"waiting_input","started_at":"2000-01-01T00:00:00Z","updated_at":"2000-01-01T00:00:00Z"}
+JSON
+  echo '{"session_id":"s1"}' | "$HOOK" on-prompt
+  jq -e '.state == "working" and (.updated_at > "2000-01-01T00:00:00Z")' \
+    "$AIGNALS_HOME/sessions/s1.json"
 }
 
 @test "writes are atomic (no .tmp leftover after success)" {

@@ -31,6 +31,26 @@ atomic_write() {
 
 now_iso() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
 
+# INV-8 reorder defense. Hooks can fire/deliver out of order; the file must only
+# ever advance in time. Given an incoming ISO8601 timestamp and an existing file,
+# return 0 (apply the write) only if the incoming timestamp is >= the stored
+# `updated_at`; return 1 (drop the write) when the stored timestamp is strictly
+# newer. `date -u` is second-granular and ISO8601 sorts lexically, so a plain
+# string compare is correct. A file with no/empty stored `updated_at` always
+# applies.
+timestamp_is_fresh() {
+  # timestamp_is_fresh <incoming_iso> <file>
+  local incoming="$1" file="$2"
+  local stored
+  stored="$(jq -r '.updated_at // empty' "$file" 2>/dev/null)"
+  [ -z "$stored" ] && return 0
+  # Drop only when stored is strictly newer than incoming.
+  if [[ "$incoming" < "$stored" ]]; then
+    return 1
+  fi
+  return 0
+}
+
 # --- subcommands ---
 cmd_on_sessionstart() {
   require_jq; ensure_dirs
@@ -40,16 +60,41 @@ cmd_on_sessionstart() {
   local cwd; cwd="$(echo "$payload" | jq -r '.cwd // empty')"
   local project; project="$(basename "${cwd:-$PWD}")"
   local pid="${PPID:-0}"
+  local ts; ts="$(now_iso)"
   jq -n \
-    --argjson schema_version 1 \
+    --argjson schema_version 2 \
     --arg session_id "$sid" \
     --arg tool "claude-code" \
     --argjson pid "$pid" \
     --arg project_name "$project" \
     --arg cwd "${cwd:-$PWD}" \
-    --arg started_at "$(now_iso)" \
-    '{schema_version:$schema_version, session_id:$session_id, tool:$tool, pid:$pid, project_name:$project_name, cwd:$cwd, started_at:$started_at}' \
+    --arg state "waiting_input" \
+    --arg started_at "$ts" \
+    --arg updated_at "$ts" \
+    '{schema_version:$schema_version, session_id:$session_id, tool:$tool, pid:$pid, project_name:$project_name, cwd:$cwd, state:$state, started_at:$started_at, updated_at:$updated_at}' \
     | atomic_write "$SESSIONS_DIR/$sid.json"
+}
+
+# cmd_set_state <state> — update an EXISTING session file's state + updated_at.
+# Mirrors cmd_on_pretool's "no file -> exit 0" discipline, applies the INV-8
+# reorder guard, and bumps schema_version to 2.
+cmd_set_state() {
+  local state="$1"
+  require_jq; ensure_dirs
+  local payload; payload="$(cat)"
+  local sid; sid="$(echo "$payload" | jq -r '.session_id // empty')"
+  [ -z "$sid" ] && exit 0
+  local file="$SESSIONS_DIR/$sid.json"
+  [ -f "$file" ] || exit 0
+
+  local ts; ts="$(now_iso)"
+  timestamp_is_fresh "$ts" "$file" || exit 0
+
+  jq --argjson schema_version 2 \
+     --arg state "$state" \
+     --arg updated_at "$ts" \
+     '.schema_version = $schema_version | .state = $state | .updated_at = $updated_at' \
+     "$file" | atomic_write "$file"
 }
 
 cmd_on_pretool() {
@@ -59,6 +104,9 @@ cmd_on_pretool() {
   [ -z "$sid" ] && exit 0
   local file="$SESSIONS_DIR/$sid.json"
   [ -f "$file" ] || exit 0
+
+  local ts; ts="$(now_iso)"
+  timestamp_is_fresh "$ts" "$file" || exit 0
 
   local tool_name; tool_name="$(echo "$payload" | jq -r '.tool_name // empty')"
   local target=""
@@ -77,10 +125,15 @@ cmd_on_pretool() {
       target="" ;;
   esac
 
-  jq --arg tool "$tool_name" \
+  jq --argjson schema_version 2 \
+     --arg state "working" \
+     --arg tool "$tool_name" \
      --arg target "$target" \
-     --arg updated_at "$(now_iso)" \
-     '.current_action = {tool:$tool, target:$target, updated_at:$updated_at}' \
+     --arg updated_at "$ts" \
+     '.schema_version = $schema_version
+      | .state = $state
+      | .updated_at = $updated_at
+      | .current_action = {tool:$tool, target:$target, updated_at:$updated_at}' \
      "$file" | atomic_write "$file"
 }
 
@@ -98,14 +151,30 @@ cmd_remove() {
 }
 
 case "${1:-}" in
-  on-sessionstart) cmd_on_sessionstart ;;
-  on-pretool)      cmd_on_pretool ;;
-  on-stop)         cmd_remove ;;
-  on-sessionend)   cmd_remove ;;
+  on-sessionstart)      cmd_on_sessionstart ;;
+  on-prompt)            cmd_set_state "working" ;;
+  on-pretool)           cmd_on_pretool ;;
+  on-posttool)          cmd_set_state "working" ;;
+  on-permission)        cmd_set_state "waiting_permission" ;;
+  on-permission-denied) cmd_set_state "working" ;;
+  on-idle)              cmd_set_state "waiting_input" ;;
+  on-stop)              cmd_set_state "waiting_input" ;;
+  on-sessionend)        cmd_remove ;;
   --help|-h|"")
     cat <<USAGE
-usage: aignals-hook <on-sessionstart|on-pretool|on-stop|on-sessionend>
+usage: aignals-hook <subcommand>
 Reads Claude Code hook payload from stdin.
+
+subcommands:
+  on-sessionstart       SessionStart      -> create file, state=waiting_input
+  on-prompt             UserPromptSubmit  -> state=working
+  on-pretool            PreToolUse        -> state=working + current_action
+  on-posttool           PostToolUse       -> state=working
+  on-permission         Notification(permission_prompt) -> state=waiting_permission
+  on-permission-denied  PermissionDenied  -> state=working
+  on-idle               Notification(idle_prompt)       -> state=waiting_input
+  on-stop               Stop              -> state=waiting_input (file kept)
+  on-sessionend         SessionEnd        -> delete file
 USAGE
     ;;
   *)
