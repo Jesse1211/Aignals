@@ -9,6 +9,7 @@ final class SessionStateTests: XCTestCase {
             ("working", .working),
             ("waiting_permission", .waitingPermission),
             ("waiting_input", .waitingInput),
+            ("disconnected", .disconnected),
         ]
         for (raw, expected) in cases {
             let parsed = SessionState(jsonValue: raw)

@@ -40,7 +40,10 @@ final class PIDSweeperTests: XCTestCase {
         store.upsert(session)
     }
 
-    func testDeadPIDRemovesFile() throws {
+    /// ADR-13/ADR-14, INV-12: a dead pid no longer removes the session — it is
+    /// marked `.disconnected` (gray) and KEPT in the store. The on-disk file is
+    /// left in place (only the FS-delete path or the 24h backstop remove files).
+    func testDeadPIDMarksDisconnectedAndKeeps() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         try writeSession(id: "a", pid: 1234, in: dir)
@@ -48,6 +51,56 @@ final class PIDSweeperTests: XCTestCase {
         let store = SessionStore()
         try loadIntoStore(store, from: dir.appendingPathComponent("a.json"))
         XCTAssertEqual(store.statusCounts.total, 1)
+        XCTAssertEqual(store.sessions.first?.state, .working)
+
+        let sweeper = PIDSweeper(
+            sessionsDirectory: dir,
+            store: store,
+            liveness: FakeLiveness(aliveSet: [])
+        )
+        sweeper.sweepOnce()
+
+        // File is preserved (NOT removed) and the session stays in the store…
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dir.appendingPathComponent("a.json").path))
+        XCTAssertEqual(store.sessions.count, 1)
+        // …now flipped to the gray `.disconnected` state.
+        XCTAssertEqual(store.sessions.first?.state, .disconnected)
+        XCTAssertEqual(store.statusCounts.disconnected, 1)
+        XCTAssertEqual(store.statusCounts.activeTotal, 0)
+        XCTAssertEqual(store.statusCounts.total, 1)
+    }
+
+    /// Repeated sweeps of the same dead session are idempotent: it stays gray
+    /// and present (no flapping, no removal).
+    func testDeadPIDIdempotentAcrossSweeps() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try writeSession(id: "a", pid: 1234, in: dir)
+
+        let store = SessionStore()
+        try loadIntoStore(store, from: dir.appendingPathComponent("a.json"))
+
+        let sweeper = PIDSweeper(
+            sessionsDirectory: dir,
+            store: store,
+            liveness: FakeLiveness(aliveSet: [])
+        )
+        sweeper.sweepOnce()
+        sweeper.sweepOnce()
+
+        XCTAssertEqual(store.sessions.count, 1)
+        XCTAssertEqual(store.sessions.first?.state, .disconnected)
+    }
+
+    /// The 24h mtime backstop is unchanged: a dead-pid session that is ALSO
+    /// stale by mtime is still removed (file + store), not merely grayed.
+    func testDeadPIDStaleByMtimeStillRemoves() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try writeSession(id: "a", pid: 1234, in: dir, mtime: Date().addingTimeInterval(-25 * 3600))
+
+        let store = SessionStore()
+        try loadIntoStore(store, from: dir.appendingPathComponent("a.json"))
 
         let sweeper = PIDSweeper(
             sessionsDirectory: dir,

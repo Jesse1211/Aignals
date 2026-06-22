@@ -54,6 +54,24 @@ public struct Session: Equatable, Sendable {
         self.currentAction = currentAction
     }
 
+    /// Returns a copy with `state` replaced. Used by `PIDSweeper` to flip a
+    /// passively-dead session to `.disconnected` (ADR-13/ADR-14) while keeping
+    /// every other field — including `updatedAt` — intact, so the store's INV-8
+    /// stale-update guard treats it as a same-instant in-place mutation.
+    public func withState(_ newState: SessionState) -> Session {
+        Session(
+            sessionID: sessionID,
+            tool: tool,
+            pid: pid,
+            projectName: projectName,
+            cwd: cwd,
+            startedAt: startedAt,
+            updatedAt: updatedAt,
+            state: newState,
+            currentAction: currentAction
+        )
+    }
+
     public static func decode(from data: Data) throws -> Session {
         let json = try JSONSerialization.jsonObject(with: data)
         guard let dict = json as? [String: Any] else {

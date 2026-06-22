@@ -57,21 +57,43 @@ public final class PIDSweeper {
         let session = try? Session.decode(from: data)
         let pid = session?.pid
 
-        let shouldDelete: Bool
+        // Two distinct outcomes (ADR-13/ADR-14, INV-12):
+        //  • removal: the 24h mtime backstop still deletes the file + drops the
+        //    session. (The hook-driven SessionEnd/file-delete path is handled
+        //    elsewhere — FSEvents — and is unchanged.)
+        //  • mark-disconnected: a *dead pid* no longer deletes; instead the
+        //    session is kept and its state flipped to `.disconnected` (gray).
+        //    `.disconnected` is set ONLY here (polling), never by aignals-hook.
+        let shouldRemove: Bool
+        let markDisconnected: Bool
         switch (pid, staleByMtime) {
-        case (let p?, _):
+        case (let p?, let stale):
             switch liveness.state(of: p) {
-            case .dead: shouldDelete = true
-            case .alive, .unknown: shouldDelete = staleByMtime
+            case .dead:
+                // pid-dead → keep as gray (still honor the 24h backstop for removal).
+                shouldRemove = stale
+                markDisconnected = !stale
+            case .alive, .unknown:
+                shouldRemove = stale
+                markDisconnected = false
             }
         case (nil, let stale):
-            shouldDelete = stale
+            shouldRemove = stale
+            markDisconnected = false
         }
 
-        if shouldDelete {
+        let id = (path.lastPathComponent as NSString).deletingPathExtension
+
+        if shouldRemove {
             try? fm.removeItem(at: path)
-            let id = (path.lastPathComponent as NSString).deletingPathExtension
             store.remove(id: id)
+        } else if markDisconnected, let session {
+            // Idempotent: only upsert if the store doesn't already show gray, so
+            // repeated sweeps of the same dead session don't re-publish.
+            let current = store.sessions.first { $0.sessionID == id }
+            if current?.state != .disconnected {
+                store.upsert(session.withState(.disconnected))
+            }
         }
     }
 }

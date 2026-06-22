@@ -11,6 +11,12 @@ public enum SessionState: String, Equatable, Sendable, CaseIterable {
     case waitingPermission = "waiting_permission"
     case waitingInput = "waiting_input"
 
+    /// Passive-death state (gray). Set ONLY by the app's `PIDSweeper` when a
+    /// session's `pid` is found dead (ADR-13/ADR-14). It is NEVER written by
+    /// `aignals-hook`: passive death fires no hook (INV-12). Parses/serializes
+    /// the JSON string `"disconnected"` for round-trip symmetry.
+    case disconnected = "disconnected"
+
     /// Parse from the JSON snake_case string. Unknown values -> `nil`.
     public init?(jsonValue: String) {
         self.init(rawValue: jsonValue)
