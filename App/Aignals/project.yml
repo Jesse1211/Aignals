@@ -36,3 +36,12 @@ targets:
         CODE_SIGN_IDENTITY: "-"
         ENABLE_HARDENED_RUNTIME: NO
         SWIFT_VERSION: "5.9"
+    postBuildScripts:
+      - name: "Embed aignals-hook"
+        script: |
+          set -euo pipefail
+          SRC="${SRCROOT}/../../CLI/aignals-hook/aignals-hook"
+          DST="${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/aignals-hook"
+          mkdir -p "$(dirname "$DST")"
+          cp "$SRC" "$DST"
+          chmod +x "$DST"
