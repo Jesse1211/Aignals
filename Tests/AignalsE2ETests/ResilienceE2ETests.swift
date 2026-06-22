@@ -33,7 +33,7 @@ final class ResilienceE2ETests: XCTestCase {
         let h = try makeHarness(liveness: ScriptedLiveness(aliveSet: []))
         let file = h.paths.sessionFile(id: "orph")
         let json = """
-        {"schema_version":1,"session_id":"orph","tool":"t","pid":99999,"project_name":"p","started_at":"2026-06-16T14:00:00Z"}
+        {"schema_version":2,"session_id":"orph","tool":"t","pid":99999,"project_name":"p","state":"working","started_at":"2026-06-16T14:00:00Z","updated_at":"2026-06-16T14:00:00Z"}
         """
         try Data(json.utf8).write(to: file)
         h.store.loadFromDisk(path: file)
@@ -46,12 +46,16 @@ final class ResilienceE2ETests: XCTestCase {
 
     func test_case08_mtimeBackstopForPidlessFile() async throws {
         let h = try makeHarness(liveness: ScriptedLiveness(aliveSet: []))
+        // This test exercises the mtime backstop specifically, so opt into a
+        // short stale window (the harness default is large to protect live
+        // lifecycle sessions from being swept mid-test).
+        h.sweeper.staleAfter = 1.0
         let file = h.paths.sessionFile(id: "noPid")
         let json = """
-        {"schema_version":1,"session_id":"noPid","tool":"t","project_name":"p","started_at":"2026-06-16T14:00:00Z"}
+        {"schema_version":2,"session_id":"noPid","tool":"t","project_name":"p","state":"working","started_at":"2026-06-16T14:00:00Z","updated_at":"2026-06-16T14:00:00Z"}
         """
         try Data(json.utf8).write(to: file)
-        // sweeper.staleAfter = 1s, so a 5s-old mtime is stale.
+        // staleAfter = 1s, so a 5s-old mtime is stale.
         try FileManager.default.setAttributes(
             [.modificationDate: Date().addingTimeInterval(-5)], ofItemAtPath: file.path)
         h.store.loadFromDisk(path: file)
@@ -72,9 +76,12 @@ final class ResilienceE2ETests: XCTestCase {
 
     func test_case10_unknownSchemaVersionIgnored() async throws {
         let h = try makeHarness()
-        let file = h.paths.sessionFile(id: "v2")
+        let file = h.paths.sessionFile(id: "v3")
+        // v2 is now the supported schema (T1); use a genuinely unknown version
+        // with otherwise-complete fields so this tests schema rejection, not a
+        // missing required field.
         let json = """
-        {"schema_version":2,"session_id":"v2","tool":"t","project_name":"p","started_at":"2026-06-16T14:00:00Z"}
+        {"schema_version":3,"session_id":"v3","tool":"t","project_name":"p","state":"working","started_at":"2026-06-16T14:00:00Z","updated_at":"2026-06-16T14:00:00Z"}
         """
         try Data(json.utf8).write(to: file)
         try await Task.sleep(nanoseconds: 800_000_000)

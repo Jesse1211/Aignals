@@ -25,8 +25,11 @@ final class Harness {
             store: store,
             liveness: liveness
         )
-        self.sweeper.interval = 0.5    // fast for tests
-        self.sweeper.staleAfter = 1.0  // tests can simulate "stale"
+        self.sweeper.interval = 0.5     // fast for tests
+        // Large enough that a live-PID session is never swept by the mtime
+        // backstop mid-test (lifecycle tests can run >1s); the mtime-backstop
+        // test opts into a short window locally via `sweeper.staleAfter`.
+        self.sweeper.staleAfter = 30.0
 
         // Locate the bundled CLI relative to repo root.
         self.hookBinary = Harness.repoRoot

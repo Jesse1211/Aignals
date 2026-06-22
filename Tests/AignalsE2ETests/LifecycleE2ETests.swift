@@ -41,14 +41,21 @@ final class LifecycleE2ETests: XCTestCase {
         XCTAssertEqual(h.store.sessions.map(\.sessionID), ["s1"])
     }
 
-    func test_case02_stopReturnsToIdle() async throws {
+    func test_case02_stopMovesToWaitingInput() async throws {
+        // Multi-status (ADR-3): `on-stop` does NOT end the session — it flips
+        // the live session to `waiting_input` (still active, awaiting the user),
+        // so it stays counted rather than returning to idle.
         let h = try makeHarness()
         try h.runHook("on-sessionstart", payload: payload(["session_id": "s1", "cwd": "/proj"]))
         let reachedRunning = await h.waitForRunning()
         XCTAssertTrue(reachedRunning)
         try h.runHook("on-stop", payload: payload(["session_id": "s1"]))
-        let reachedIdle = await h.waitForIdle()
-        XCTAssertTrue(reachedIdle)
+        let reachedWaiting = await h.waitUntil {
+            h.store.statusCounts.waitingInput == 1 && h.store.statusCounts.total == 1
+        }
+        XCTAssertTrue(reachedWaiting)
+        XCTAssertEqual(h.store.sessions.map(\.sessionID), ["s1"])
+        XCTAssertEqual(h.store.sessions.first?.state, .waitingInput)
     }
 
     func test_case03_sessionEndReturnsToIdle() async throws {
@@ -61,26 +68,29 @@ final class LifecycleE2ETests: XCTestCase {
         XCTAssertTrue(reachedIdle)
     }
 
-    func test_case04_twoSessionsStopFirstStaysRunning() async throws {
+    func test_case04_twoSessionsStopOneKeepsBothActive() async throws {
+        // Multi-status (ADR-3): stopping the first session does not remove it —
+        // it flips to `waiting_input` while the second stays as-is, so both
+        // remain counted (INV-4: total == sessions.count).
         let h = try makeHarness()
         try h.runHook("on-sessionstart", payload: payload(["session_id": "a", "cwd": "/A"]))
         try h.runHook("on-sessionstart", payload: payload(["session_id": "b", "cwd": "/B"]))
         let reachedRunning = await h.waitForRunning()
         XCTAssertTrue(reachedRunning)
         // Wait for both files to land in the store.
-        let deadline = Date().addingTimeInterval(2)
-        while Date() < deadline, h.store.sessions.count < 2 {
-            try? await Task.sleep(nanoseconds: 100_000_000)
-        }
+        let bothLoaded = await h.waitUntil { h.store.sessions.count == 2 }
+        XCTAssertTrue(bothLoaded)
         XCTAssertEqual(Set(h.store.sessions.map(\.sessionID)), ["a", "b"])
 
         try h.runHook("on-stop", payload: payload(["session_id": "a"]))
-        let d2 = Date().addingTimeInterval(2)
-        while Date() < d2, h.store.sessions.count > 1 {
-            try? await Task.sleep(nanoseconds: 100_000_000)
+        // "a" flips to waiting_input; both sessions stay active.
+        let aWaiting = await h.waitUntil {
+            h.store.sessions.first(where: { $0.sessionID == "a" })?.state == .waitingInput
         }
-        XCTAssertTrue(h.store.statusCounts.total > 0)
-        XCTAssertEqual(h.store.sessions.map(\.sessionID), ["b"])
+        XCTAssertTrue(aWaiting)
+        XCTAssertEqual(Set(h.store.sessions.map(\.sessionID)), ["a", "b"])
+        XCTAssertEqual(h.store.statusCounts.total, h.store.sessions.count) // INV-4
+        XCTAssertGreaterThan(h.store.statusCounts.total, 0)
     }
 
     func test_case05_pretoolMapsKnownTools() async throws {
