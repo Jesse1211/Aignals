@@ -48,6 +48,16 @@ struct MenuContent: View {
                            informative: "Edit ~/.claude/settings.json manually. Error: \(error)")
             }
         }
+        if !vm.hookIsLinked {
+            Button("Install aignals-hook CLI…") {
+                do {
+                    try vm.linkHookCLI()
+                    Self.alert("Linked", informative: "Symlinked aignals-hook into ~/.local/bin. If that's not on your PATH, add: export PATH=\"$HOME/.local/bin:$PATH\"")
+                } catch {
+                    Self.alert("Couldn't link CLI", informative: error.localizedDescription)
+                }
+            }
+        }
         Button("Open ~/.aignals") { vm.revealAignalsHome() }
         Button("About Aignals…") { openWindow(id: "about") }
 

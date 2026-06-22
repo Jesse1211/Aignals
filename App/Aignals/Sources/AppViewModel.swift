@@ -68,6 +68,31 @@ extension AppViewModel {
 }
 
 extension AppViewModel {
+    /// The `aignals-hook` script embedded in the app bundle (phase-11).
+    var bundledHookURL: URL? {
+        Bundle.main.url(forResource: "aignals-hook", withExtension: nil)
+    }
+
+    /// Where we symlink the CLI so it lands on the user's PATH (no sudo).
+    var hookSymlinkURL: URL {
+        URL(fileURLWithPath: NSHomeDirectory())
+            .appendingPathComponent(".local/bin/aignals-hook")
+    }
+
+    var hookIsLinked: Bool {
+        FileManager.default.fileExists(atPath: hookSymlinkURL.path)
+    }
+
+    func linkHookCLI() throws {
+        guard let src = bundledHookURL else { return }
+        let dir = hookSymlinkURL.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try? FileManager.default.removeItem(at: hookSymlinkURL)
+        try FileManager.default.createSymbolicLink(at: hookSymlinkURL, withDestinationURL: src)
+    }
+}
+
+extension AppViewModel {
     var config: AignalsConfig {
         get { configStore.config }
         set {
