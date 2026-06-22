@@ -94,25 +94,21 @@ struct MenuContent: View {
     @ViewBuilder
     private var actions: some View {
         VStack(alignment: .leading, spacing: 2) {
-            menuButton("Install Claude Code Hooks…") {
-                do {
-                    try vm.installClaudeHooks()
-                    Self.alert("Hooks installed",
-                               informative: "Aignals will now light up when Claude Code is working.")
-                } catch {
-                    Self.alert("Couldn't install hooks",
-                               informative: "Edit ~/.claude/settings.json manually. Error: \(error)")
+            if !vm.claudeHooksInstalled {
+                menuButton("Install Claude Code Hooks…") {
+                    runInstall(vm.installClaudeHooks,
+                               successTitle: "Hooks installed",
+                               successInfo: "Aignals will now light up when Claude Code is working.",
+                               failureTitle: "Couldn't install hooks") { "Edit ~/.claude/settings.json manually. Error: \($0)" }
                 }
             }
 
             if !vm.hookIsLinked {
                 menuButton("Install aignals-hook CLI…") {
-                    do {
-                        try vm.linkHookCLI()
-                        Self.alert("Linked", informative: "Symlinked aignals-hook into ~/.local/bin. If that's not on your PATH, add: export PATH=\"$HOME/.local/bin:$PATH\"")
-                    } catch {
-                        Self.alert("Couldn't link CLI", informative: error.localizedDescription)
-                    }
+                    runInstall(vm.linkHookCLI,
+                               successTitle: "Linked",
+                               successInfo: "Symlinked aignals-hook into ~/.local/bin. If that's not on your PATH, add: export PATH=\"$HOME/.local/bin:$PATH\"",
+                               failureTitle: "Couldn't link CLI") { $0.localizedDescription }
                 }
             }
 
@@ -145,6 +141,23 @@ struct MenuContent: View {
         .buttonStyle(.plain)
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
+    }
+
+    /// Runs an install action, showing a success alert on completion or a
+    /// failure alert built from the thrown error. The two install buttons differ
+    /// only in their action and message text, so this factors out the shared
+    /// do/try/catch → alert flow.
+    private func runInstall(_ action: () throws -> Void,
+                            successTitle: String,
+                            successInfo: String,
+                            failureTitle: String,
+                            failureInfo: (Error) -> String) {
+        do {
+            try action()
+            Self.alert(successTitle, informative: successInfo)
+        } catch {
+            Self.alert(failureTitle, informative: failureInfo(error))
+        }
     }
 
     private static func alert(_ title: String, informative: String) {

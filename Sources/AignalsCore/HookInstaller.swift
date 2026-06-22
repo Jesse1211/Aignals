@@ -43,7 +43,7 @@ public struct HookInstaller {
               let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
             return false
         }
-        return Self.events.allSatisfy { hasCommand($0.command, event: $0.event, root: root) }
+        return Self.events.allSatisfy { hasCommand($0.command, event: $0.event, matcher: $0.matcher, root: root) }
     }
 
     public func install(into file: URL) throws {
@@ -74,10 +74,13 @@ public struct HookInstaller {
     }
 
     private func mergeEvent(eventArray: [[String: Any]], command: String, matcher: String?) -> [[String: Any]] {
-        // Already present?
+        // Already present? Match by suffix so an existing absolute-path entry
+        // (e.g. "/path/to/aignals-hook on-stop") counts as present and we don't
+        // append a duplicate bare-command entry. Must use the same rule as
+        // `hasCommand` (isInstalled) so the two never disagree.
         for entry in eventArray {
             if let inner = entry["hooks"] as? [[String: Any]],
-               inner.contains(where: { ($0["command"] as? String) == command }) {
+               inner.contains(where: { ($0["command"] as? String)?.hasSuffix(command) == true }) {
                 return eventArray
             }
         }
@@ -94,12 +97,19 @@ public struct HookInstaller {
         return out
     }
 
-    private func hasCommand(_ command: String, event: String, root: [String: Any]) -> Bool {
+    private func hasCommand(_ command: String, event: String, matcher: String?, root: [String: Any]) -> Bool {
         guard let hooks = root["hooks"] as? [String: Any],
               let arr = hooks[event] as? [[String: Any]] else { return false }
+        // Match by suffix so a hook installed with an absolute path
+        // (e.g. "/path/to/aignals-hook on-stop") still counts as installed,
+        // not just the bare "aignals-hook on-stop" form this installer writes.
+        // For events disambiguated by matcher (the two `Notification` variants:
+        // permission_prompt vs idle_prompt), the matcher must also agree, else a
+        // mis-routed entry would be reported as installed yet never fire.
         return arr.contains { entry in
+            if let matcher = matcher, (entry["matcher"] as? String) != matcher { return false }
             guard let inner = entry["hooks"] as? [[String: Any]] else { return false }
-            return inner.contains { ($0["command"] as? String) == command }
+            return inner.contains { ($0["command"] as? String)?.hasSuffix(command) == true }
         }
     }
 }

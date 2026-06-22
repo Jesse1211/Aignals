@@ -109,3 +109,46 @@ Notes:
   ```
 
 - The in-dropdown features (rename, drag-reorder, pin, live tick) are mouse interactions in the panel — open the dropdown and try them.
+
+## Uninstall
+
+Aignals stores everything in two places: hook entries in `~/.claude/settings.json`, and its own data under `~/.aignals/`. To remove it completely:
+
+1. **Quit the app** — click the menu bar icon → **Quit Aignals**.
+
+2. **Remove the hooks from `~/.claude/settings.json`.** This deletes only Aignals' hook entries and leaves your other hooks untouched (requires `jq`):
+
+   ```bash
+   cp ~/.claude/settings.json ~/.claude/settings.json.bak   # backup first
+   jq '
+     .hooks |= with_entries(
+       .value |= map(select(
+         (.hooks // []) | any(.command? // "" | test("aignals-hook")) | not
+       ))
+     )
+     | .hooks |= with_entries(select(.value | length > 0))
+   ' ~/.claude/settings.json > ~/.claude/settings.json.tmp \
+     && mv ~/.claude/settings.json.tmp ~/.claude/settings.json
+   ```
+
+3. **Remove the CLI symlink** (if you ran *Install aignals-hook CLI…*):
+
+   ```bash
+   rm -f ~/.local/bin/aignals-hook
+   ```
+
+4. **Remove Aignals' data** (session files, config, custom names/order):
+
+   ```bash
+   rm -rf ~/.aignals
+   ```
+
+5. **Remove the app:**
+
+   ```bash
+   brew uninstall --cask aignals          # if installed via Homebrew
+   # or, if you dragged it in manually:
+   rm -rf /Applications/Aignals.app
+   ```
+
+The Homebrew cask's `zap` stanza also covers `~/.aignals` and the preferences plist, so `brew uninstall --zap --cask aignals` does steps 4–5 in one go (you still do steps 2–3 by hand).

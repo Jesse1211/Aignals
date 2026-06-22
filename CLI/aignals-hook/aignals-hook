@@ -29,7 +29,18 @@ atomic_write() {
   mv -f "$tmp" "$path"
 }
 
-now_iso() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
+# Millisecond-precision UTC ISO8601 so two events in the same wall-clock second
+# still order correctly under the INV-8 reorder defense (a plain second-granular
+# stamp would let a reordered same-second write win as a tie). Falls back to
+# second granularity if perl/Time::HiRes is unavailable; ISO8601 still sorts
+# lexically either way. The Swift side parses both forms.
+now_iso() {
+  perl -MTime::HiRes=time -e '
+    my $t = time; my @g = gmtime($t);
+    printf("%04d-%02d-%02dT%02d:%02d:%02d.%03dZ\n",
+           $g[5]+1900, $g[4]+1, $g[3], $g[2], $g[1], $g[0], ($t-int($t))*1000);
+  ' 2>/dev/null || date -u +"%Y-%m-%dT%H:%M:%S.000Z"
+}
 
 # INV-8 reorder defense. Hooks can fire/deliver out of order; the file must only
 # ever advance in time. Given an incoming ISO8601 timestamp and an existing file,

@@ -40,6 +40,14 @@ final class AppViewModel {
         watcher.start()
         sweeper.start()
         seedInitialState()
+
+        // Prune orphaned overrides whenever the session set changes (covers the
+        // normal SessionEnd path: FSEvents deletes the file → store.remove, which
+        // never touches overrides). INV-10. (ADR-12)
+        let stream = store.changes
+        Task { @MainActor [weak self] in
+            for await _ in stream { self?.pruneOrphanedOverrides() }
+        }
     }
 
     /// Load any session files already on disk so the UI reflects current state
@@ -143,11 +151,23 @@ extension AppViewModel {
         overridesVersion &+= 1
     }
 
-    /// Dismiss a session: remove it from the store AND prune its override (ADR-15/INV-10).
+    /// Dismiss a session: delete its on-disk file, remove it from the store, and
+    /// drop its override (ADR-15/INV-10). The file delete is essential — a gray
+    /// (disconnected) session's file is left on disk by `PIDSweeper`, so without
+    /// removing it the 5s sweep would re-read it and resurrect the dismissed row.
     func removeSession(_ session: Session) {
+        try? FileManager.default.removeItem(at: paths.sessionFile(id: session.sessionID))
         store.remove(id: session.sessionID)
         overrideStore.remove(for: session.sessionID)
         overridesVersion &+= 1
+    }
+
+    /// Drop overrides whose session no longer exists (INV-10 orphan cleanup for
+    /// the normal SessionEnd path, which deletes the file via FSEvents without
+    /// touching the override). Called after the session set may have shrunk.
+    func pruneOrphanedOverrides() {
+        let live = Set(store.sessions.map(\.sessionID))
+        overrideStore.prune(keepingIDs: live)
     }
 }
 

@@ -142,6 +142,16 @@ private let iso: ISO8601DateFormatter = {
     return f
 }()
 
+// `aignals-hook` writes `updated_at` with millisecond precision (e.g.
+// "...:32.172Z") so two events in the same wall-clock second still order
+// correctly (INV-8). This parser accepts the fractional-seconds form; the plain
+// second-granular form above is the fallback for any field written without it.
+private let isoFractional: ISO8601DateFormatter = {
+    let f = ISO8601DateFormatter()
+    f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    return f
+}()
+
 private func isoDate(_ s: String) -> Date? {
-    iso.date(from: s)
+    isoFractional.date(from: s) ?? iso.date(from: s)
 }
