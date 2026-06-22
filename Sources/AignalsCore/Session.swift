@@ -7,6 +7,11 @@ public struct Session: Equatable, Sendable {
     public let projectName: String
     public let cwd: String?
     public let startedAt: Date
+    /// Monotonic last-update timestamp of the session file (INV-8), parsed from
+    /// the top-level `updated_at` ISO8601 field.
+    public let updatedAt: Date
+    /// Multi-status lifecycle state (schema v2, required field — ADR-10).
+    public let state: SessionState
     public let currentAction: CurrentAction?
 
     public struct CurrentAction: Equatable, Sendable {
@@ -34,6 +39,8 @@ public struct Session: Equatable, Sendable {
         projectName: String,
         cwd: String?,
         startedAt: Date,
+        updatedAt: Date,
+        state: SessionState,
         currentAction: CurrentAction?
     ) {
         self.sessionID = sessionID
@@ -42,6 +49,8 @@ public struct Session: Equatable, Sendable {
         self.projectName = projectName
         self.cwd = cwd
         self.startedAt = startedAt
+        self.updatedAt = updatedAt
+        self.state = state
         self.currentAction = currentAction
     }
 
@@ -52,7 +61,7 @@ public struct Session: Equatable, Sendable {
         }
 
         let version = dict["schema_version"] as? Int ?? 0
-        guard version == 1 else { throw DecodeError.unsupportedSchemaVersion(version) }
+        guard version == 2 else { throw DecodeError.unsupportedSchemaVersion(version) }
 
         func required<T>(_ key: String) throws -> T {
             guard let v = dict[key] as? T else { throw DecodeError.missingField(key) }
@@ -65,6 +74,18 @@ public struct Session: Equatable, Sendable {
         let startedAtStr: String = try required("started_at")
         guard let startedAt = isoDate(startedAtStr) else {
             throw DecodeError.invalidDate(startedAtStr)
+        }
+
+        // INV-8: monotonic last-update timestamp, required top-level `updated_at`.
+        let updatedAtStr: String = try required("updated_at")
+        guard let updatedAt = isoDate(updatedAtStr) else {
+            throw DecodeError.invalidDate(updatedAtStr)
+        }
+
+        // ADR-10: `state` is a required field; missing/unknown -> decode fails.
+        let stateStr: String = try required("state")
+        guard let state = SessionState(jsonValue: stateStr) else {
+            throw DecodeError.missingField("state")
         }
 
         let pid = (dict["pid"] as? Int).map(Int32.init) ?? (dict["pid"] as? Int32)
@@ -90,6 +111,8 @@ public struct Session: Equatable, Sendable {
             projectName: projectName,
             cwd: cwd,
             startedAt: startedAt,
+            updatedAt: updatedAt,
+            state: state,
             currentAction: currentAction
         )
     }

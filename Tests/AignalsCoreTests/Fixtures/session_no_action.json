@@ -1,7 +1,9 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "session_id": "abc-456",
   "tool": "claude-code",
   "project_name": "dotfiles",
-  "started_at": "2026-06-16T14:00:00Z"
+  "state": "waiting_input",
+  "started_at": "2026-06-16T14:00:00Z",
+  "updated_at": "2026-06-16T14:02:00Z"
 }

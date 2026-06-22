@@ -60,8 +60,9 @@ final class FSEventsWatcherTests: XCTestCase {
     private func writeSession(id: String, to dir: URL) throws {
         let json = """
         {
-          "schema_version": 1, "session_id": "\(id)", "tool": "t",
-          "project_name": "p", "started_at": "2026-06-16T14:00:00Z"
+          "schema_version": 2, "session_id": "\(id)", "tool": "t",
+          "project_name": "p", "state": "working",
+          "started_at": "2026-06-16T14:00:00Z", "updated_at": "2026-06-16T14:00:00Z"
         }
         """
         let final = dir.appendingPathComponent("\(id).json")

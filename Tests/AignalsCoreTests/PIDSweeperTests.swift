@@ -19,9 +19,10 @@ final class PIDSweeperTests: XCTestCase {
         let pidJSON = pid.map { "\"pid\": \($0)," } ?? ""
         let json = """
         {
-          "schema_version": 1, "session_id": "\(id)", "tool": "t",
+          "schema_version": 2, "session_id": "\(id)", "tool": "t",
           \(pidJSON)
-          "project_name": "p", "started_at": "2026-06-16T14:00:00Z"
+          "project_name": "p", "state": "working",
+          "started_at": "2026-06-16T14:00:00Z", "updated_at": "2026-06-16T14:00:00Z"
         }
         """
         let url = dir.appendingPathComponent("\(id).json")

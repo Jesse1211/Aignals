@@ -11,6 +11,8 @@ final class SessionStoreTests: XCTestCase {
             projectName: id,
             cwd: nil,
             startedAt: startedAt,
+            updatedAt: startedAt,
+            state: .working,
             currentAction: nil
         )
     }
@@ -39,6 +41,8 @@ final class SessionStoreTests: XCTestCase {
             projectName: "renamed",
             cwd: nil,
             startedAt: s1.startedAt,
+            updatedAt: s1.startedAt,
+            state: .working,
             currentAction: nil
         )
         store.upsert(s2)
@@ -88,8 +92,9 @@ extension SessionStoreTests {
         defer { try? FileManager.default.removeItem(at: tmp) }
         let json = """
         {
-          "schema_version": 1, "session_id": "a", "tool": "t",
-          "project_name": "p", "started_at": "2026-06-16T14:00:00Z"
+          "schema_version": 2, "session_id": "a", "tool": "t",
+          "project_name": "p", "state": "working",
+          "started_at": "2026-06-16T14:00:00Z", "updated_at": "2026-06-16T14:00:00Z"
         }
         """
         try Data(json.utf8).write(to: tmp)

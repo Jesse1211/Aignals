@@ -1,1 +1,1 @@
-{ "schema_version": 2, "session_id": "x", "tool": "x", "project_name": "x", "started_at": "2026-06-16T14:00:00Z" }
+{ "schema_version": 99, "session_id": "x", "tool": "x", "project_name": "x", "state": "working", "started_at": "2026-06-16T14:00:00Z", "updated_at": "2026-06-16T14:00:00Z" }

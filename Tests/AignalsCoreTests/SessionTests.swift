@@ -20,6 +20,11 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(session.cwd, "/Users/jesseliu/Desktop/Chore/Aignals")
         XCTAssertEqual(session.currentAction?.tool, "Edit")
         XCTAssertEqual(session.currentAction?.target, "main.swift")
+        XCTAssertEqual(session.state, .working)
+        XCTAssertEqual(
+            session.updatedAt,
+            ISO8601DateFormatter().date(from: "2026-06-16T14:54:31Z")
+        )
     }
 
     func testDecodeSessionWithoutAction() throws {
@@ -29,9 +34,12 @@ final class SessionTests: XCTestCase {
         XCTAssertNil(session.currentAction)
         XCTAssertNil(session.pid)
         XCTAssertNil(session.cwd)
+        XCTAssertEqual(session.state, .waitingInput)
     }
 
     func testDecodeUnknownVersionReturnsNil() throws {
+        // schema_version=99 is an unsupported future version (the accepted
+        // version is now 2 — see SessionStateTests for the v2 happy path).
         let data = try loadFixture("session_v2")
         XCTAssertNil(try? Session.decode(from: data))
     }
@@ -44,9 +52,11 @@ final class SessionTests: XCTestCase {
     func testDecodeIgnoresUnknownExtraFields() throws {
         let raw = """
         {
-          "schema_version": 1,
+          "schema_version": 2,
           "session_id": "a", "tool": "t", "project_name": "p",
+          "state": "working",
           "started_at": "2026-06-16T14:00:00Z",
+          "updated_at": "2026-06-16T14:00:00Z",
           "unknown_field": "ignored"
         }
         """
