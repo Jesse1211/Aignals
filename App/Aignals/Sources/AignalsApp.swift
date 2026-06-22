@@ -18,7 +18,7 @@ struct AignalsApp: App {
         } label: {
             Image(nsImage: StatusIcon.image(for: vm.store.statusCounts, hasError: vm.store.hasError))
         }
-        .menuBarExtraStyle(.menu)
+        .menuBarExtraStyle(.window)
 
         Window("About Aignals", id: "about") {
             AboutView()
