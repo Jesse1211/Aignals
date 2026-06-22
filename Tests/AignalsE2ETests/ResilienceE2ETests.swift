@@ -29,7 +29,20 @@ final class ResilienceE2ETests: XCTestCase {
         }
     }
 
-    func test_case07_deadPidRemovedBySweep() async throws {
+    /// Wait until the session with `id` reaches `state` (or timeout).
+    private func waitUntilState(
+        _ id: String, _ state: SessionState, store: SessionStore, timeout: TimeInterval = 3
+    ) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if store.sessions.first(where: { $0.sessionID == id })?.state == state { return }
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+    }
+
+    /// ADR-13/ADR-14, INV-12: a dead pid is no longer removed by the sweep — it
+    /// is marked `.disconnected` (gray) and KEPT, with its file left in place.
+    func test_case07_deadPidMarkedDisconnectedBySweep() async throws {
         let h = try makeHarness(liveness: ScriptedLiveness(aliveSet: []))
         let file = h.paths.sessionFile(id: "orph")
         let json = """
@@ -39,9 +52,12 @@ final class ResilienceE2ETests: XCTestCase {
         h.store.loadFromDisk(path: file)
         XCTAssertTrue(h.store.statusCounts.total > 0)
 
-        await waitUntilGone(file, store: h.store)
-        XCTAssertTrue(h.store.statusCounts.isEmpty)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+        await waitUntilState("orph", .disconnected, store: h.store)
+        XCTAssertEqual(h.store.sessions.first(where: { $0.sessionID == "orph" })?.state, .disconnected)
+        XCTAssertEqual(h.store.statusCounts.disconnected, 1)
+        XCTAssertEqual(h.store.statusCounts.activeTotal, 0)
+        // File is preserved; the session stays visible (gray light).
+        XCTAssertTrue(FileManager.default.fileExists(atPath: file.path))
     }
 
     func test_case08_mtimeBackstopForPidlessFile() async throws {

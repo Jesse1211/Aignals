@@ -103,6 +103,7 @@ struct MenuContent: View {
         case .working: return .red
         case .waitingPermission: return .yellow
         case .waitingInput: return .green
+        case .disconnected: return .gray
         }
     }
 
