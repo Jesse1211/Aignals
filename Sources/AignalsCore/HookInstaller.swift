@@ -5,12 +5,35 @@ public struct HookInstaller {
         case malformedSettingsJSON
     }
 
-    public struct EventDef { let event: String; let command: String }
+    public struct EventDef {
+        let event: String
+        let command: String
+        /// Optional notification_type matcher used to disambiguate multiple
+        /// entries that share the same hook event (e.g. two `Notification`
+        /// hooks). Claude Code matches `Notification` hooks by
+        /// `notification_type`, so it is written into the settings.json entry.
+        let matcher: String?
+
+        init(event: String, command: String, matcher: String? = nil) {
+            self.event = event
+            self.command = command
+            self.matcher = matcher
+        }
+    }
+
+    /// Every hook event the state machine needs, each mapped to its
+    /// matching `aignals-hook` subcommand. The two `Notification` events are
+    /// distinguished by their `matcher` (notification_type).
     public static let events: [EventDef] = [
-        .init(event: "SessionStart", command: "aignals-hook on-sessionstart"),
-        .init(event: "PreToolUse",   command: "aignals-hook on-pretool"),
-        .init(event: "Stop",         command: "aignals-hook on-stop"),
-        .init(event: "SessionEnd",   command: "aignals-hook on-sessionend"),
+        .init(event: "SessionStart",    command: "aignals-hook on-sessionstart"),
+        .init(event: "UserPromptSubmit", command: "aignals-hook on-prompt"),
+        .init(event: "PreToolUse",      command: "aignals-hook on-pretool"),
+        .init(event: "Notification",    command: "aignals-hook on-permission", matcher: "permission_prompt"),
+        .init(event: "PostToolUse",     command: "aignals-hook on-posttool"),
+        .init(event: "PermissionDenied", command: "aignals-hook on-permission-denied"),
+        .init(event: "Notification",    command: "aignals-hook on-idle", matcher: "idle_prompt"),
+        .init(event: "Stop",            command: "aignals-hook on-stop"),
+        .init(event: "SessionEnd",      command: "aignals-hook on-sessionend"),
     ]
 
     public init() {}
@@ -36,7 +59,9 @@ public struct HookInstaller {
         }
         var hooks = root["hooks"] as? [String: Any] ?? [:]
         for e in Self.events {
-            hooks[e.event] = mergeEvent(eventArray: hooks[e.event] as? [[String: Any]] ?? [], command: e.command)
+            hooks[e.event] = mergeEvent(eventArray: hooks[e.event] as? [[String: Any]] ?? [],
+                                        command: e.command,
+                                        matcher: e.matcher)
         }
         root["hooks"] = hooks
 
@@ -48,7 +73,7 @@ public struct HookInstaller {
         _ = try FileManager.default.replaceItemAt(file, withItemAt: tmp)
     }
 
-    private func mergeEvent(eventArray: [[String: Any]], command: String) -> [[String: Any]] {
+    private func mergeEvent(eventArray: [[String: Any]], command: String, matcher: String?) -> [[String: Any]] {
         // Already present?
         for entry in eventArray {
             if let inner = entry["hooks"] as? [[String: Any]],
@@ -57,11 +82,15 @@ public struct HookInstaller {
             }
         }
         var out = eventArray
-        out.append([
+        var entry: [String: Any] = [
             "hooks": [
                 ["type": "command", "command": command]
             ]
-        ])
+        ]
+        if let matcher = matcher {
+            entry["matcher"] = matcher
+        }
+        out.append(entry)
         return out
     }
 
