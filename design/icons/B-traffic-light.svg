@@ -1,0 +1,15 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- B: Vertical traffic light — the literal "红绿灯" metaphor. -->
+  <defs>
+    <linearGradient id="bgB" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b2d31"/>
+      <stop offset="1" stop-color="#1a1b1e"/>
+    </linearGradient>
+  </defs>
+  <rect x="32" y="32" width="448" height="448" rx="104" fill="url(#bgB)"/>
+  <!-- housing -->
+  <rect x="186" y="96" width="140" height="320" rx="70" fill="#0d0e10" stroke="#3a3d42" stroke-width="8"/>
+  <circle cx="256" cy="160" r="44" fill="#ff453a"/>
+  <circle cx="256" cy="256" r="44" fill="#ffd60a"/>
+  <circle cx="256" cy="352" r="44" fill="#32d74b"/>
+</svg>

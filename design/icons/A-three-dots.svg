@@ -1,0 +1,13 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- A: Three signal dots in a row on a rounded squircle. Direct nod to the multi-status count. -->
+  <defs>
+    <linearGradient id="bgA" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b2d31"/>
+      <stop offset="1" stop-color="#1a1b1e"/>
+    </linearGradient>
+  </defs>
+  <rect x="32" y="32" width="448" height="448" rx="104" fill="url(#bgA)"/>
+  <circle cx="160" cy="256" r="58" fill="#ff453a"/>
+  <circle cx="256" cy="256" r="58" fill="#ffd60a"/>
+  <circle cx="352" cy="256" r="58" fill="#32d74b"/>
+</svg>
