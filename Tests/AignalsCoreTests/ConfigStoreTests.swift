@@ -28,6 +28,32 @@ final class ConfigStoreTests: XCTestCase {
         XCTAssertEqual(reload.config.dismissedInstallPrompt, true)
     }
 
+    func testSoundEnabledDefaultsTrue() throws {
+        let store = ConfigStore(paths: try tmpHome())
+        XCTAssertEqual(store.config.soundEnabled, true)
+    }
+
+    func testSoundEnabledRoundtrip() throws {
+        let paths = try tmpHome()
+        let store = ConfigStore(paths: paths)
+        var c = store.config
+        c.soundEnabled = false
+        store.save(c)
+
+        let reload = ConfigStore(paths: paths)
+        XCTAssertEqual(reload.config.soundEnabled, false)
+    }
+
+    func testSoundEnabledDecodesTrueWhenAbsent() throws {
+        let paths = try tmpHome()
+        // Legacy config.json without `soundEnabled` must keep sound on.
+        try Data(#"{"launchAtLogin":true,"dismissedInstallPrompt":false}"#.utf8)
+            .write(to: paths.configFile)
+        let store = ConfigStore(paths: paths)
+        XCTAssertEqual(store.config.soundEnabled, true)
+        XCTAssertEqual(store.config.launchAtLogin, true)
+    }
+
     func testMalformedFileFallsBackToDefaults() throws {
         let paths = try tmpHome()
         try Data("not json".utf8).write(to: paths.configFile)

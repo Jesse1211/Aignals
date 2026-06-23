@@ -49,6 +49,13 @@ public final class OverrideStore {
         persist()
     }
 
+    public func setMuted(_ muted: Bool, for id: String) {
+        var ov = overrides[id] ?? SessionOverride()
+        ov.muted = muted
+        overrides[id] = ov
+        persist()
+    }
+
     public func remove(for id: String) {
         overrides.removeValue(forKey: id)
         persist()

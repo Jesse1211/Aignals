@@ -3,8 +3,30 @@ import Foundation
 public struct AignalsConfig: Equatable, Codable, Sendable {
     public var launchAtLogin: Bool
     public var dismissedInstallPrompt: Bool
+    /// Global sound toggle (ADR-20). Decodes to `true` when the key is absent so
+    /// existing config.json files keep sound on after upgrade.
+    public var soundEnabled: Bool
 
-    public static let `default` = AignalsConfig(launchAtLogin: false, dismissedInstallPrompt: false)
+    public init(launchAtLogin: Bool, dismissedInstallPrompt: Bool, soundEnabled: Bool = true) {
+        self.launchAtLogin = launchAtLogin
+        self.dismissedInstallPrompt = dismissedInstallPrompt
+        self.soundEnabled = soundEnabled
+    }
+
+    public static let `default` = AignalsConfig(launchAtLogin: false, dismissedInstallPrompt: false, soundEnabled: true)
+
+    private enum CodingKeys: String, CodingKey {
+        case launchAtLogin
+        case dismissedInstallPrompt
+        case soundEnabled
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.launchAtLogin = try container.decode(Bool.self, forKey: .launchAtLogin)
+        self.dismissedInstallPrompt = try container.decode(Bool.self, forKey: .dismissedInstallPrompt)
+        self.soundEnabled = try container.decodeIfPresent(Bool.self, forKey: .soundEnabled) ?? true
+    }
 }
 
 public final class ConfigStore {

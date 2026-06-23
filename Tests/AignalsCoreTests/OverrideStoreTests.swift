@@ -42,6 +42,42 @@ final class OverrideStoreTests: XCTestCase {
         XCTAssertEqual(reload.override(for: "s1")?.pinned, false)
     }
 
+    func testMutedDefaultsFalse() throws {
+        let store = OverrideStore(paths: try tmpHome())
+        store.setName("X", for: "s1")
+        XCTAssertEqual(store.override(for: "s1")?.muted, false)
+    }
+
+    func testMutedRoundTripAcrossReload() throws {
+        let paths = try tmpHome()
+        let store = OverrideStore(paths: paths)
+        store.setMuted(true, for: "s1")
+
+        let reload = OverrideStore(paths: paths)
+        XCTAssertEqual(reload.override(for: "s1")?.muted, true)
+    }
+
+    func testSetMutedTrueThenFalse() throws {
+        let paths = try tmpHome()
+        let store = OverrideStore(paths: paths)
+        store.setMuted(true, for: "s1")
+        XCTAssertEqual(store.override(for: "s1")?.muted, true)
+        store.setMuted(false, for: "s1")
+        XCTAssertEqual(store.override(for: "s1")?.muted, false)
+
+        let reload = OverrideStore(paths: paths)
+        XCTAssertEqual(reload.override(for: "s1")?.muted, false)
+    }
+
+    func testMutedDecodesFalseWhenAbsent() throws {
+        let paths = try tmpHome()
+        // Legacy entry without a `muted` key must decode to muted=false.
+        try Data(#"{"s1":{"name":"Old","pinned":true}}"#.utf8).write(to: paths.overridesFile)
+        let store = OverrideStore(paths: paths)
+        XCTAssertEqual(store.override(for: "s1")?.muted, false)
+        XCTAssertEqual(store.override(for: "s1")?.pinned, true)
+    }
+
     func testRemoveDropsEntry() throws {
         let paths = try tmpHome()
         let store = OverrideStore(paths: paths)
