@@ -161,6 +161,18 @@ struct MenuContent: View {
         if !vm.launchAtLogin {
             menuButton("Enable Launch at Login") { vm.enableLaunchAtLogin() }
         }
+
+        // DESTRUCTIVE: full uninstall. Placed last in the Settings fold and
+        // styled red. Confirm-then-act flow lives in `runUninstall`.
+        Button(action: runUninstall) {
+            Text("Uninstall Aignals…")
+                .foregroundStyle(.red)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
     }
 
     private func menuButton(_ title: String, action: @escaping () -> Void) -> some View {
@@ -188,6 +200,38 @@ struct MenuContent: View {
             Self.alert(successTitle, informative: successInfo)
         } catch {
             Self.alert(failureTitle, informative: failureInfo(error))
+        }
+    }
+
+    /// The destructive uninstall flow: a confirmation alert first, and only if
+    /// the user explicitly confirms do we call `vm.uninstall()`. On success we
+    /// show a final "drag to Trash" alert and quit; on error we show the error
+    /// and do NOT quit (so the user can fix e.g. a malformed settings.json). This
+    /// is a dedicated handler (not `runInstall`) because it needs the two-alert
+    /// confirm-then-act shape.
+    private func runUninstall() {
+        let confirm = NSAlert()
+        confirm.messageText = "Uninstall Aignals?"
+        confirm.informativeText = "This removes its Claude Code hooks, the aignals-hook CLI link, and all data in ~/.aignals. Aignals.app itself you'll drag to the Trash."
+        confirm.alertStyle = .warning
+        confirm.addButton(withTitle: "Cancel")
+        let uninstallButton = confirm.addButton(withTitle: "Uninstall")
+        if #available(macOS 11.0, *) {
+            uninstallButton.hasDestructiveAction = true
+        }
+
+        // First button (.alertFirstButtonReturn) is Cancel; the second is Uninstall.
+        guard confirm.runModal() == .alertSecondButtonReturn else { return }
+
+        do {
+            try vm.uninstall()
+            Self.alert("Aignals uninstalled",
+                       informative: "Aignals uninstalled — drag Aignals.app to the Trash to finish.")
+            NSApplication.shared.terminate(nil)
+        } catch {
+            Self.alert("Couldn't uninstall",
+                       informative: "Aignals was not fully uninstalled. Error: \(error)")
+            // Do NOT quit — let the user resolve the problem and retry.
         }
     }
 

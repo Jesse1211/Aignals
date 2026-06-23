@@ -310,4 +310,173 @@ final class HookInstallerTests: XCTestCase {
         let installer = HookInstaller()
         XCTAssertThrowsError(try installer.install(into: file))
     }
+
+    // MARK: - Uninstall (inverse of install)
+
+    /// Uninstall must remove ALL 9 aignals commands in BOTH the bare AND the
+    /// absolute-path form, while preserving the user's unrelated hooks (a
+    /// Notification afplay entry and a PreToolUse user command). After uninstall:
+    /// no aignals command remains, the unrelated hooks survive, and now-empty
+    /// event arrays / the hooks block collapse appropriately.
+    func testUninstallRemovesAignalsButPreservesUnrelatedHooks() throws {
+        let file = tmpFile()
+        defer { try? FileManager.default.removeItem(at: file) }
+        let installer = HookInstaller()
+
+        // Bare install first, then an absolute-path install — but the absolute
+        // form dedupes against the bare one (idempotent across forms), so to
+        // actually exercise BOTH forms coexisting we hand-build a file that has
+        // bare aignals entries for some events and absolute-path ones for others,
+        // PLUS two unrelated user hooks.
+        let bareInstaller = HookInstaller()
+        try bareInstaller.install(into: file) // 9 bare aignals commands
+
+        // Rewrite HALF the events to the absolute-path form, so uninstall must
+        // recognize both. Also add unrelated user hooks.
+        var json = try readJSON(file)
+        var hooks = json["hooks"] as! [String: Any]
+        // Make Stop + SessionEnd absolute-path form.
+        for event in ["Stop", "SessionEnd"] {
+            var arr = hooks[event] as! [[String: Any]]
+            for i in arr.indices {
+                guard var inner = arr[i]["hooks"] as? [[String: Any]] else { continue }
+                for j in inner.indices {
+                    if let c = inner[j]["command"] as? String {
+                        inner[j]["command"] = "/Users/x/.local/bin/" + c
+                    }
+                }
+                arr[i]["hooks"] = inner
+            }
+            hooks[event] = arr
+        }
+        // Unrelated user hook #1: a Notification afplay entry (different matcher).
+        var notifications = hooks["Notification"] as! [[String: Any]]
+        notifications.append([
+            "matcher": "some_other_type",
+            "hooks": [["type": "command", "command": "afplay /System/Library/Sounds/Glass.aiff"]]
+        ])
+        hooks["Notification"] = notifications
+        // Unrelated user hook #2: a PreToolUse user command.
+        var pretool = hooks["PreToolUse"] as! [[String: Any]]
+        pretool.append([
+            "matcher": "Bash",
+            "hooks": [["type": "command", "command": "user-bash-watch"]]
+        ])
+        hooks["PreToolUse"] = pretool
+        json["hooks"] = hooks
+        try JSONSerialization.data(withJSONObject: json, options: .prettyPrinted).write(to: file)
+
+        // Sanity: fully installed before uninstall (mixed forms still count).
+        XCTAssertTrue(installer.isInstalled(in: file))
+
+        try installer.uninstall(from: file)
+
+        let after = try readJSON(file)
+
+        // No aignals command (bare OR absolute) remains anywhere.
+        let allCommands: [String] = {
+            guard let h = after["hooks"] as? [String: Any] else { return [] }
+            return h.values.flatMap { ($0 as? [[String: Any]]) ?? [] }
+                .flatMap { ($0["hooks"] as? [[String: Any]]) ?? [] }
+                .compactMap { $0["command"] as? String }
+        }()
+        for (_, sub, _) in HookInstaller.eventSubcommands {
+            XCTAssertFalse(allCommands.contains { $0.hasSuffix(" \(sub)") },
+                           "aignals command for \(sub) must be gone, got \(allCommands)")
+        }
+
+        // Unrelated user hooks preserved.
+        XCTAssertTrue(commands(in: after, event: "PreToolUse").contains("user-bash-watch"),
+                      "user PreToolUse hook must survive")
+        XCTAssertTrue(commands(in: after, event: "Notification").contains("afplay /System/Library/Sounds/Glass.aiff"),
+                      "user Notification afplay hook must survive")
+
+        // Events that held ONLY aignals hooks collapse away entirely.
+        let hooksAfter = after["hooks"] as? [String: Any] ?? [:]
+        XCTAssertNil(hooksAfter["Stop"], "Stop held only aignals → event array dropped")
+        XCTAssertNil(hooksAfter["SessionEnd"], "SessionEnd held only aignals → event array dropped")
+        XCTAssertNil(hooksAfter["SessionStart"], "SessionStart held only aignals → dropped")
+
+        // isInstalled now false.
+        XCTAssertFalse(installer.isInstalled(in: file))
+    }
+
+    /// After uninstall, the entire hooks block is dropped when no other hooks
+    /// existed (clean slate, not an empty-object remnant).
+    func testUninstallDropsEmptyHooksBlock() throws {
+        let file = tmpFile()
+        defer { try? FileManager.default.removeItem(at: file) }
+        let installer = HookInstaller()
+        try installer.install(into: file)   // only aignals hooks present
+        try installer.uninstall(from: file)
+        let after = try readJSON(file)
+        XCTAssertNil(after["hooks"], "hooks block must be dropped when it becomes empty")
+    }
+
+    /// Uninstall is idempotent: a second uninstall is a clean no-op.
+    func testUninstallIsIdempotent() throws {
+        let file = tmpFile()
+        defer { try? FileManager.default.removeItem(at: file) }
+        let installer = HookInstaller()
+        try installer.install(into: file)
+        try installer.uninstall(from: file)
+        // Second uninstall must not throw and must leave state unchanged.
+        XCTAssertNoThrow(try installer.uninstall(from: file))
+        XCTAssertFalse(installer.isInstalled(in: file))
+    }
+
+    /// Uninstall on a file with NO aignals hooks is a clean no-op that preserves
+    /// the user's unrelated hooks byte-for-byte (file left untouched).
+    func testUninstallWithNoAignalsHooksIsNoOp() throws {
+        let file = tmpFile()
+        defer { try? FileManager.default.removeItem(at: file) }
+        let existing: [String: Any] = [
+            "hooks": [
+                "PreToolUse": [
+                    ["matcher": "Bash", "hooks": [["type": "command", "command": "user-bash-watch"]]]
+                ]
+            ]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: existing, options: [.prettyPrinted, .sortedKeys])
+        try data.write(to: file)
+        let before = try Data(contentsOf: file)
+
+        try HookInstaller().uninstall(from: file)
+
+        // File untouched (we only rewrite when we actually removed something).
+        let after = try Data(contentsOf: file)
+        XCTAssertEqual(before, after, "no-aignals uninstall must leave the file byte-for-byte unchanged")
+        // And the user hook is still there.
+        let json = try readJSON(file)
+        XCTAssertTrue(commands(in: json, event: "PreToolUse").contains("user-bash-watch"))
+    }
+
+    /// Uninstall on a missing file succeeds as a no-op (nothing to remove).
+    func testUninstallMissingFileIsNoOp() throws {
+        let file = tmpFile() // never created
+        XCTAssertNoThrow(try HookInstaller().uninstall(from: file))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path),
+                       "uninstall must not create the file")
+    }
+
+    /// Malformed settings.json must throw on uninstall (never clobber the file).
+    func testUninstallMalformedJSONThrows() throws {
+        let file = tmpFile()
+        defer { try? FileManager.default.removeItem(at: file) }
+        try Data("not json".utf8).write(to: file)
+        XCTAssertThrowsError(try HookInstaller().uninstall(from: file))
+        // File still intact (not clobbered).
+        XCTAssertEqual(try Data(contentsOf: file), Data("not json".utf8))
+    }
+
+    /// After install then uninstall, isInstalled() returns false.
+    func testUninstallMakesIsInstalledFalse() throws {
+        let file = tmpFile()
+        defer { try? FileManager.default.removeItem(at: file) }
+        let installer = HookInstaller()
+        try installer.install(into: file)
+        XCTAssertTrue(installer.isInstalled(in: file))
+        try installer.uninstall(from: file)
+        XCTAssertFalse(installer.isInstalled(in: file))
+    }
 }

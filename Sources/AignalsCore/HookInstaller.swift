@@ -114,6 +114,77 @@ public struct HookInstaller {
         _ = try FileManager.default.replaceItemAt(file, withItemAt: tmp)
     }
 
+    /// The INVERSE of `install`: remove ONLY Aignals' own hook entries from
+    /// settings.json and leave every other hook untouched.
+    ///
+    /// An entry is "ours" iff one of its inner hook commands ends in one of the
+    /// program-token-independent `" on-<subcommand>"` suffixes we register
+    /// (`eventSubcommands`). This matches BOTH the bare form
+    /// ("aignals-hook on-stop") and any absolute-path form
+    /// ("/abs/aignals-hook on-stop") — the same suffix logic install/dedup uses
+    /// (`bareSuffix(of:)`), so we cleanly reverse whatever install wrote.
+    ///
+    /// After dropping our entries: an event array that becomes empty is removed,
+    /// and if "hooks" becomes empty it is removed too. The write is atomic
+    /// (temp + replaceItemAt), identical to install. A missing file, or a file
+    /// with no aignals hooks, succeeds as a no-op (the file is left byte-for-byte
+    /// unchanged in the no-aignals case — we only rewrite when we actually
+    /// removed something). Malformed JSON throws rather than clobbering.
+    public func uninstall(from file: URL) throws {
+        // Missing file: nothing to remove. No-op.
+        guard FileManager.default.fileExists(atPath: file.path) else { return }
+
+        let data = try Data(contentsOf: file)
+        // Empty file: nothing structured to remove. No-op.
+        if data.isEmpty { return }
+        guard var root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+            throw InstallError.malformedSettingsJSON
+        }
+
+        guard var hooks = root["hooks"] as? [String: Any] else {
+            return // no hooks block at all → nothing of ours to remove.
+        }
+
+        // The full set of program-token-independent suffixes WE register. An
+        // entry whose inner command ends in any of these is ours.
+        let ourSuffixes = Self.eventSubcommands.map { " \($0.subcommand)" }
+
+        func isOurs(_ entry: [String: Any]) -> Bool {
+            guard let inner = entry["hooks"] as? [[String: Any]] else { return false }
+            return inner.contains { h in
+                guard let cmd = h["command"] as? String else { return false }
+                return ourSuffixes.contains { cmd.hasSuffix($0) }
+            }
+        }
+
+        var removedSomething = false
+        for (event, value) in hooks {
+            guard let arr = value as? [[String: Any]] else { continue }
+            let kept = arr.filter { !isOurs($0) }
+            if kept.count == arr.count { continue } // none of ours under this event
+            removedSomething = true
+            if kept.isEmpty {
+                hooks.removeValue(forKey: event) // drop now-empty event array
+            } else {
+                hooks[event] = kept
+            }
+        }
+
+        // Nothing of ours was present: leave the file untouched (true no-op).
+        guard removedSomething else { return }
+
+        if hooks.isEmpty {
+            root.removeValue(forKey: "hooks") // drop now-empty hooks block
+        } else {
+            root["hooks"] = hooks
+        }
+
+        let tmp = file.appendingPathExtension("tmp.\(UUID().uuidString)")
+        let serialized = try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
+        try serialized.write(to: tmp)
+        _ = try FileManager.default.replaceItemAt(file, withItemAt: tmp)
+    }
+
     private func mergeEvent(eventArray: [[String: Any]], command: String, matcher: String?) -> [[String: Any]] {
         // Already present? Match on the bare " on-<subcommand>" suffix (and, for
         // disambiguated Notification entries, the matcher) so that ANY program

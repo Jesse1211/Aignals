@@ -351,6 +351,31 @@ extension AppViewModel {
         _ = installVersion // re-derive after an install (settings.json isn't @Observable)
         return HookInstaller().isInstalled(in: claudeSettingsURL)
     }
+
+    /// Full in-app uninstall (everything EXCEPT the app bundle itself — the app
+    /// is running, so it can't delete itself; the UI tells the user to drag
+    /// Aignals.app to the Trash). The inverse of installClaudeHooks + linkHookCLI
+    /// plus a wipe of the data dir:
+    ///   1. remove ONLY Aignals' hook entries from ~/.claude/settings.json
+    ///      (HookInstaller.uninstall leaves all other hooks untouched);
+    ///   2. remove the CLI symlink at ~/.local/bin/aignals-hook if present;
+    ///   3. delete the entire ~/.aignals data dir.
+    ///
+    /// Only step 1 can throw (malformed settings.json → surfaces an error so the
+    /// UI does NOT quit and the user can fix it). Steps 2/3 are best-effort
+    /// (try?) — a missing symlink/dir is fine. We do NOT terminate here: the UI
+    /// layer owns the confirm + final dialog + quit, so an error can surface
+    /// first. `installVersion` is bumped so the menu re-derives its state.
+    func uninstall() throws {
+        try HookInstaller().uninstall(from: claudeSettingsURL)
+        // Best-effort: only remove the symlink if it actually exists.
+        if FileManager.default.fileExists(atPath: hookSymlinkURL.path) {
+            try? FileManager.default.removeItem(at: hookSymlinkURL)
+        }
+        // Wipe the entire data dir (~/.aignals). Best-effort.
+        try? FileManager.default.removeItem(at: paths.home)
+        installVersion &+= 1 // re-derive claudeHooksInstalled / hookIsLinked now
+    }
 }
 
 extension AppViewModel {
