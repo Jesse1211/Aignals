@@ -23,6 +23,12 @@ final class AppViewModel {
     /// wouldn't hide until the menu is reopened.
     private var installVersion = 0
 
+    /// Bumped on every `config` mutation so SwiftUI re-derives anything reading it
+    /// (e.g. `soundEnabled`, `launchAtLogin`) — `ConfigStore` is not `@Observable`,
+    /// so without this, toggling global sound wouldn't update the per-row mute
+    /// icons or the Launch button until the menu is reopened.
+    private var configVersion = 0
+
     private let configStore: ConfigStore
     private let watcher: FSEventsWatcher
     private let sweeper: PIDSweeper
@@ -169,6 +175,37 @@ extension AppViewModel {
     /// the sound trigger even when global sound is on.
     func setMuted(_ muted: Bool, for session: Session) {
         overrideStore.setMuted(muted, for: session.sessionID)
+        overridesVersion &+= 1
+    }
+
+    /// Whether this session will ACTUALLY make a sound: global sound on AND this
+    /// session not individually muted. Drives the per-row speaker icon.
+    func soundActive(for session: Session) -> Bool {
+        _ = configVersion   // re-derive when global sound toggles
+        _ = overridesVersion
+        return soundEnabled && !isMuted(session)
+    }
+
+    /// Toggle sound for one session from its row speaker button, with the
+    /// global toggle as the master switch (per the user's rule):
+    ///  - If this session is currently active (audible) → mute just this session.
+    ///  - If it is NOT active → make it the audible one: turn the global switch ON,
+    ///    unmute this session, and mute every OTHER session (so "enable sound on
+    ///    s1" while globally off yields s1 audible, others muted, global = ON).
+    func toggleSound(for session: Session) {
+        if soundActive(for: session) {
+            setMuted(true, for: session)
+            return
+        }
+        if !soundEnabled {
+            // Global was off: turning a single session on flips the master switch
+            // on, so mute every other current session to keep only this one audible.
+            for other in store.sessions where other.sessionID != session.sessionID {
+                overrideStore.setMuted(true, for: other.sessionID)
+            }
+            soundEnabled = true
+        }
+        overrideStore.setMuted(false, for: session.sessionID)
         overridesVersion &+= 1
     }
 
@@ -407,9 +444,13 @@ extension AppViewModel {
 
 extension AppViewModel {
     var config: AignalsConfig {
-        get { configStore.config }
+        get {
+            _ = configVersion // re-derive when config changes (ConfigStore isn't @Observable)
+            return configStore.config
+        }
         set {
             configStore.save(newValue)
+            configVersion &+= 1
             if #available(macOS 13.0, *) {
                 try? LaunchAtLogin.set(newValue.launchAtLogin)
             }

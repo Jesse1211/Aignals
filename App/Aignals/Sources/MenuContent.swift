@@ -282,12 +282,17 @@ private struct SessionRow: View {
             Spacer(minLength: 4)
 
             Button {
-                vm.setMuted(!vm.isMuted(session), for: session)
+                vm.toggleSound(for: session)
             } label: {
-                Image(systemName: vm.isMuted(session) ? "speaker.slash.fill" : "speaker.wave.2")
+                // The icon reflects whether this session will ACTUALLY make a
+                // sound: 🔊 when audible (global sound on AND not individually
+                // muted), 🔇 otherwise — so turning global sound off shows every
+                // row as muted. Clicking a muted row turns sound on for just it
+                // (flipping the global master on, muting the others).
+                Image(systemName: vm.soundActive(for: session) ? "speaker.wave.2" : "speaker.slash.fill")
             }
             .buttonStyle(.borderless)
-            .help(vm.isMuted(session) ? "Unmute this session" : "Mute this session")
+            .help(vm.soundActive(for: session) ? "Mute this session" : "Enable sound for this session")
 
             Button {
                 vm.setPinned(!vm.isPinned(session), for: session)
