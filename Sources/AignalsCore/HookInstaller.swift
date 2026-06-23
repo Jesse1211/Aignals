@@ -120,7 +120,8 @@ public struct HookInstaller {
         // token form — bare "aignals-hook on-stop", an old absolute path, or the
         // new absolute path we are about to write — counts as the same hook and
         // we never append a duplicate. `bareSuffix` is the program-independent
-        // tail; it must match the rule `hasCommand` (isInstalled) uses.
+        // tail, so dedup ignores the program token entirely (a superset of what
+        // `hasCommand`/`isInstalled` recognizes).
         let bareSuffix = Self.bareSuffix(of: command)
         for entry in eventArray {
             if matcher != nil, (entry["matcher"] as? String) != matcher { continue }

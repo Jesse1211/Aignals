@@ -20,7 +20,7 @@ final class AppViewModel {
     /// Bumped after a hook/CLI install so SwiftUI re-derives `claudeHooksInstalled`
     /// / `hookIsLinked` immediately — those read settings.json / the filesystem,
     /// which `@Observable` can't track, so without this the "Install…" menu items
-    /// wouldn't hide until the menu is reopened. (read it to establish the dependency)
+    /// wouldn't hide until the menu is reopened.
     private var installVersion = 0
 
     private let configStore: ConfigStore
@@ -134,25 +134,21 @@ extension AppViewModel {
     /// visible drop and lets two pinned rows be reordered (their `order` now
     /// participates in the sort, see `SessionOrdering`).
     ///
-    /// We deliberately do NOT stamp sessions that were already orderless and
-    /// stayed at the top untouched? — no: to make a drag round-trip we must give
-    /// every row in the dragged group a concrete index. A brand-new session that
-    /// appears AFTER this drag still has no override and therefore sorts to the
-    /// top (ADR-16), which is the whole point of the orderless-on-top rule.
+    /// Every row in the dragged group gets a concrete index so the drag
+    /// round-trips. A brand-new session that appears AFTER this drag still has no
+    /// override and therefore sorts to the top (ADR-16) — the whole point of the
+    /// orderless-on-top rule.
     func setOrder(_ orderedSessions: [Session]) {
-        var index = 0
         // Stamp pinned rows first (in their displayed order), then unpinned —
         // matching the group order the sort itself uses, so indices never fight
-        // the pinned-first rule.
-        for s in orderedSessions where isPinned(s) {
-            overrideStore.setOrder(index, for: s.sessionID)
-            index += 1
+        // the pinned-first rule. Each group is numbered from 0 independently.
+        func stamp(_ sessions: [Session]) {
+            for (index, s) in sessions.enumerated() {
+                overrideStore.setOrder(index, for: s.sessionID)
+            }
         }
-        index = 0
-        for s in orderedSessions where !isPinned(s) {
-            overrideStore.setOrder(index, for: s.sessionID)
-            index += 1
-        }
+        stamp(orderedSessions.filter { isPinned($0) })
+        stamp(orderedSessions.filter { !isPinned($0) })
         overridesVersion &+= 1
     }
 

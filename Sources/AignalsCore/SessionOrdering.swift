@@ -27,7 +27,7 @@ public protocol OrderableSession {
     var startedAtKey: Date { get }
 }
 
-/// Look up the persisted preferences a session may carry.
+/// The persisted ordering preferences a session may carry.
 public struct OrderingOverride {
     public let order: Int?
     public let pinned: Bool
