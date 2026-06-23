@@ -62,16 +62,17 @@ timestamp_is_fresh() {
   return 0
 }
 
-# --- subcommands ---
-cmd_on_sessionstart() {
-  require_jq; ensure_dirs
-  local payload; payload="$(cat)"
-  local sid; sid="$(echo "$payload" | jq -r '.session_id // empty')"
-  [ -z "$sid" ] && exit 0
+# create_session_file <file> <sid> <payload> <state> <ts>
+# Write a fresh schema-v2 session file. Used by on-sessionstart and, per ADR-25 /
+# INV-14 (adopt-on-event), by the UPDATE-class subcommands when their target file
+# is absent — a session that was already running before hooks were installed gets
+# adopted on its next event (SessionStart does NOT re-fire for it).
+create_session_file() {
+  local file="$1" sid="$2" payload="$3" state="$4" ts="$5"
   local cwd; cwd="$(echo "$payload" | jq -r '.cwd // empty')"
   local project; project="$(basename "${cwd:-$PWD}")"
-  local pid="${PPID:-0}"
-  local ts; ts="$(now_iso)"
+  local pid; pid="$(echo "$payload" | jq -r '.pid // empty')"
+  [ -z "$pid" ] && pid="${PPID:-0}"
   jq -n \
     --argjson schema_version 2 \
     --arg session_id "$sid" \
@@ -79,16 +80,27 @@ cmd_on_sessionstart() {
     --argjson pid "$pid" \
     --arg project_name "$project" \
     --arg cwd "${cwd:-$PWD}" \
-    --arg state "waiting_input" \
+    --arg state "$state" \
     --arg started_at "$ts" \
     --arg updated_at "$ts" \
     '{schema_version:$schema_version, session_id:$session_id, tool:$tool, pid:$pid, project_name:$project_name, cwd:$cwd, state:$state, started_at:$started_at, updated_at:$updated_at}' \
-    | atomic_write "$SESSIONS_DIR/$sid.json"
+    | atomic_write "$file"
 }
 
-# cmd_set_state <state> — update an EXISTING session file's state + updated_at.
-# Mirrors cmd_on_pretool's "no file -> exit 0" discipline, applies the INV-8
-# reorder guard, and bumps schema_version to 2.
+# --- subcommands ---
+cmd_on_sessionstart() {
+  require_jq; ensure_dirs
+  local payload; payload="$(cat)"
+  local sid; sid="$(echo "$payload" | jq -r '.session_id // empty')"
+  [ -z "$sid" ] && exit 0
+  local ts; ts="$(now_iso)"
+  create_session_file "$SESSIONS_DIR/$sid.json" "$sid" "$payload" "waiting_input" "$ts"
+}
+
+# cmd_set_state <state> — set a session file's state + updated_at. If the file
+# already exists this updates it (applying the INV-8 reorder guard and bumping
+# schema_version to 2). If it is absent it is CREATED with the given state per
+# ADR-25 / INV-14 (adopt-on-event).
 cmd_set_state() {
   local state="$1"
   require_jq; ensure_dirs
@@ -96,9 +108,13 @@ cmd_set_state() {
   local sid; sid="$(echo "$payload" | jq -r '.session_id // empty')"
   [ -z "$sid" ] && exit 0
   local file="$SESSIONS_DIR/$sid.json"
-  [ -f "$file" ] || exit 0
-
   local ts; ts="$(now_iso)"
+
+  if [ ! -f "$file" ]; then
+    create_session_file "$file" "$sid" "$payload" "$state" "$ts"
+    exit 0
+  fi
+
   timestamp_is_fresh "$ts" "$file" || exit 0
 
   jq --argjson schema_version 2 \
@@ -114,10 +130,21 @@ cmd_on_pretool() {
   local sid; sid="$(echo "$payload" | jq -r '.session_id // empty')"
   [ -z "$sid" ] && exit 0
   local file="$SESSIONS_DIR/$sid.json"
-  [ -f "$file" ] || exit 0
-
   local ts; ts="$(now_iso)"
-  timestamp_is_fresh "$ts" "$file" || exit 0
+
+  # ADR-25 / INV-14 (adopt-on-event): a pre-existing session has no file yet, so
+  # back-fill one with state=working before recording its current_action below.
+  local created=0
+  if [ ! -f "$file" ]; then
+    create_session_file "$file" "$sid" "$payload" "working" "$ts"
+    created=1
+  fi
+
+  # On an existing file honor the INV-8 reorder guard; a just-created file is
+  # already at this exact timestamp, so skip the guard for it.
+  if [ "$created" -eq 0 ]; then
+    timestamp_is_fresh "$ts" "$file" || exit 0
+  fi
 
   local tool_name; tool_name="$(echo "$payload" | jq -r '.tool_name // empty')"
   local target=""

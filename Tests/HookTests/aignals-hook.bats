@@ -51,9 +51,11 @@ teardown() { rm -rf "$TMP"; }
     "$AIGNALS_HOME/sessions/s1.json"
 }
 
-@test "on-pretool is a no-op when session file is absent" {
-  echo '{"session_id":"ghost","tool_name":"Bash","tool_input":{"command":"x"}}' | "$HOOK" on-pretool
-  [ ! -f "$AIGNALS_HOME/sessions/ghost.json" ]
+@test "ADR-25/INV-14: on-pretool on a non-existent file ADOPTS it (state=working + current_action)" {
+  echo '{"session_id":"adopt","cwd":"/proj/bar","tool_name":"Bash","tool_input":{"command":"npm test"}}' | "$HOOK" on-pretool
+  [ -f "$AIGNALS_HOME/sessions/adopt.json" ]
+  jq -e '.schema_version == 2 and .state == "working" and .project_name == "bar" and .current_action.tool == "Bash" and .current_action.target == "npm test"' \
+    "$AIGNALS_HOME/sessions/adopt.json"
 }
 
 @test "on-prompt sets state=working" {
@@ -62,9 +64,13 @@ teardown() { rm -rf "$TMP"; }
   jq -e '.state == "working" and .schema_version == 2' "$AIGNALS_HOME/sessions/s1.json"
 }
 
-@test "on-prompt is a no-op when session file is absent" {
-  echo '{"session_id":"ghost"}' | "$HOOK" on-prompt
-  [ ! -f "$AIGNALS_HOME/sessions/ghost.json" ]
+@test "ADR-25/INV-14: on-prompt on a non-existent file ADOPTS it (creates state=working)" {
+  echo '{"session_id":"adopt","cwd":"/proj/foo","pid":4242}' | "$HOOK" on-prompt
+  [ -f "$AIGNALS_HOME/sessions/adopt.json" ]
+  jq -e '.schema_version == 2 and .session_id == "adopt" and .tool == "claude-code" and .state == "working" and .pid == 4242 and .project_name == "foo" and .cwd == "/proj/foo"' \
+    "$AIGNALS_HOME/sessions/adopt.json"
+  jq -e '.updated_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[.][0-9]{3}Z$")' \
+    "$AIGNALS_HOME/sessions/adopt.json"
 }
 
 @test "on-posttool sets state=working" {
@@ -101,15 +107,30 @@ teardown() { rm -rf "$TMP"; }
   jq -e '.state == "waiting_input" and .schema_version == 2' "$AIGNALS_HOME/sessions/s1.json"
 }
 
-@test "on-stop is a no-op when session file is absent" {
-  echo '{"session_id":"ghost"}' | "$HOOK" on-stop
-  [ ! -f "$AIGNALS_HOME/sessions/ghost.json" ]
+@test "ADR-25/INV-14: on-stop on a non-existent file ADOPTS it (creates state=waiting_input)" {
+  echo '{"session_id":"adopt","cwd":"/proj/baz"}' | "$HOOK" on-stop
+  [ -f "$AIGNALS_HOME/sessions/adopt.json" ]
+  jq -e '.schema_version == 2 and .state == "waiting_input" and .project_name == "baz"' \
+    "$AIGNALS_HOME/sessions/adopt.json"
+}
+
+@test "ADR-25/INV-14: on-permission on a non-existent file ADOPTS it (creates state=waiting_permission)" {
+  echo '{"session_id":"adopt","cwd":"/proj/qux"}' | "$HOOK" on-permission
+  [ -f "$AIGNALS_HOME/sessions/adopt.json" ]
+  jq -e '.schema_version == 2 and .state == "waiting_permission" and .project_name == "qux"' \
+    "$AIGNALS_HOME/sessions/adopt.json"
 }
 
 @test "on-sessionend deletes the session file" {
   echo '{"session_id":"s1"}' | "$HOOK" on-sessionstart
   echo '{"session_id":"s1"}' | "$HOOK" on-sessionend
   [ ! -f "$AIGNALS_HOME/sessions/s1.json" ]
+}
+
+@test "ADR-25/INV-14: on-sessionend on a non-existent file creates NOTHING (no create-then-delete)" {
+  run bash -c "echo '{\"session_id\":\"ghost\"}' | \"$HOOK\" on-sessionend"
+  [ "$status" -eq 0 ]
+  [ ! -f "$AIGNALS_HOME/sessions/ghost.json" ]
 }
 
 @test "INV-8: a write carrying an older updated_at than stored is dropped (file unchanged)" {
