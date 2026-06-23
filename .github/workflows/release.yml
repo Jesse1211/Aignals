@@ -93,3 +93,56 @@ jobs:
             dist/SHA256SUMS-*.txt
           generate_release_notes: true
           fail_on_unmatched_files: true
+
+      # Auto-update the Homebrew tap (Jesse1211/homebrew-aignals) so
+      # `brew install --cask aignals` tracks the new release with no manual
+      # sha256/version edit. Requires a repo secret TAP_PUSH_TOKEN: a GitHub PAT
+      # with push access to homebrew-aignals (fine-grained: Contents R&W on that
+      # repo; or a classic token with `repo`). When the secret is absent the
+      # script no-ops, so the release still succeeds (update the tap by hand).
+      - name: Update Homebrew tap
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          TAP_PUSH_TOKEN: ${{ secrets.TAP_PUSH_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TAP_PUSH_TOKEN:-}" ]; then
+            echo "TAP_PUSH_TOKEN secret not set — skipping tap update (update homebrew-aignals by hand)."
+            exit 0
+          fi
+          V="${{ steps.ver.outputs.version }}"
+          DMG_SHA="$(shasum -a 256 "dist/Aignals-$V.dmg" | awk '{print $1}')"
+          echo "dmg sha256 = $DMG_SHA"
+
+          git clone "https://x-access-token:${TAP_PUSH_TOKEN}@github.com/Jesse1211/homebrew-aignals.git" tap
+          mkdir -p tap/Casks
+          cat > tap/Casks/aignals.rb <<RUBY
+          cask "aignals" do
+            version "$V"
+            sha256 "$DMG_SHA"
+
+            url "https://github.com/Jesse1211/Aignals/releases/download/v#{version}/Aignals-#{version}.dmg"
+            name "Aignals"
+            desc "Menu bar indicator for AI coding agent activity"
+            homepage "https://github.com/Jesse1211/Aignals"
+
+            app "Aignals.app"
+
+            zap trash: [
+              "~/.aignals",
+              "~/Library/Preferences/com.aignals.Aignals.plist",
+            ]
+          end
+          RUBY
+
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- Casks/aignals.rb; then
+            echo "Cask already up to date; nothing to push."
+          else
+            git add Casks/aignals.rb
+            git commit -m "aignals $V (automated from release.yml)"
+            git push origin HEAD:main
+            echo "Pushed aignals $V to the tap."
+          fi
