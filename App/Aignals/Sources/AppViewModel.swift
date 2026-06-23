@@ -17,6 +17,12 @@ final class AppViewModel {
     /// (`OverrideStore` is not `@Observable`).
     private var overridesVersion = 0
 
+    /// Bumped after a hook/CLI install so SwiftUI re-derives `claudeHooksInstalled`
+    /// / `hookIsLinked` immediately — those read settings.json / the filesystem,
+    /// which `@Observable` can't track, so without this the "Install…" menu items
+    /// wouldn't hide until the menu is reopened. (read it to establish the dependency)
+    private var installVersion = 0
+
     private let configStore: ConfigStore
     private let watcher: FSEventsWatcher
     private let sweeper: PIDSweeper
@@ -194,6 +200,7 @@ extension AppViewModel {
     func installClaudeHooks() throws {
         let hookPath = try resolveHookPathForInstall()
         try HookInstaller().install(into: claudeSettingsURL, hookPath: hookPath)
+        installVersion &+= 1 // re-derive claudeHooksInstalled so the item hides now
     }
 
     /// Resolve the absolute path to write into the hook commands. Prefers an
@@ -219,7 +226,8 @@ extension AppViewModel {
     }
 
     var claudeHooksInstalled: Bool {
-        HookInstaller().isInstalled(in: claudeSettingsURL)
+        _ = installVersion // re-derive after an install (settings.json isn't @Observable)
+        return HookInstaller().isInstalled(in: claudeSettingsURL)
     }
 }
 
@@ -236,7 +244,8 @@ extension AppViewModel {
     }
 
     var hookIsLinked: Bool {
-        FileManager.default.fileExists(atPath: hookSymlinkURL.path)
+        _ = installVersion // re-derive after a link (the filesystem isn't @Observable)
+        return FileManager.default.fileExists(atPath: hookSymlinkURL.path)
     }
 
     func linkHookCLI() throws {
@@ -245,6 +254,7 @@ extension AppViewModel {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try? FileManager.default.removeItem(at: hookSymlinkURL)
         try FileManager.default.createSymbolicLink(at: hookSymlinkURL, withDestinationURL: src)
+        installVersion &+= 1 // re-derive hookIsLinked so the item hides now
     }
 }
 
