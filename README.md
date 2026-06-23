@@ -9,7 +9,7 @@ brew tap Jesse1211/aignals
 brew install --cask aignals
 ```
 
-Or download `Aignals-0.2.0.dmg` from the [latest release](https://github.com/Jesse1211/Aignals/releases/latest). On first launch, right-click → Open to bypass Gatekeeper (the build is self-signed).
+Or download `Aignals-0.2.1.dmg` from the [latest release](https://github.com/Jesse1211/Aignals/releases/latest). On first launch, right-click → Open to bypass Gatekeeper (the build is self-signed).
 
 After installing the app, run **Install Claude Code Hooks…** from the menu (or accept the first-launch prompt) to wire it up.
 
@@ -117,7 +117,9 @@ Notes:
 
 ## Uninstall
 
-Aignals stores everything in two places: hook entries in `~/.claude/settings.json`, and its own data under `~/.aignals/`. To remove it completely:
+**Easiest:** open the menu → **Settings → Uninstall Aignals…**. It removes Aignals' Claude Code hooks (leaving your other hooks intact), the `aignals-hook` CLI link, and all data in `~/.aignals`, then asks you to drag `Aignals.app` to the Trash to finish.
+
+To do it by hand instead — Aignals stores everything in two places: hook entries in `~/.claude/settings.json`, and its own data under `~/.aignals/`. To remove it completely:
 
 1. **Quit the app** — click the menu bar icon → **Quit Aignals**.
 
