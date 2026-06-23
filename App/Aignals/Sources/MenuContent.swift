@@ -24,6 +24,11 @@ struct MenuContent: View {
     @State private var tick = Date()
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
+    /// Whether the "Settings" fold is expanded (ADR-27/INV-16). Collapsed by
+    /// default so the always-visible menu is just the session list + the
+    /// "Settings" button + Quit.
+    @State private var settingsExpanded = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if vm.store.hasError {
@@ -94,34 +99,17 @@ struct MenuContent: View {
     @ViewBuilder
     private var actions: some View {
         VStack(alignment: .leading, spacing: 2) {
-            if !vm.claudeHooksInstalled {
-                menuButton("Install Claude Code Hooks…") {
-                    runInstall(vm.installClaudeHooks,
-                               successTitle: "Hooks installed",
-                               successInfo: "Aignals will now light up when Claude Code is working.",
-                               failureTitle: "Couldn't install hooks") { "Edit ~/.claude/settings.json manually. Error: \($0)" }
-                }
+            // ADR-27/INV-16: the config-class items collapse behind a single
+            // "Settings" disclosure. Always-visible = session list + this
+            // button + Quit.
+            menuButton(settingsExpanded ? "Settings ▾" : "Settings ▸") {
+                settingsExpanded.toggle()
             }
 
-            if !vm.hookIsLinked {
-                menuButton("Install aignals-hook CLI…") {
-                    runInstall(vm.linkHookCLI,
-                               successTitle: "Linked",
-                               successInfo: "Symlinked aignals-hook into ~/.local/bin. If that's not on your PATH, add: export PATH=\"$HOME/.local/bin:$PATH\"",
-                               failureTitle: "Couldn't link CLI") { $0.localizedDescription }
-                }
+            if settingsExpanded {
+                settingsItems
+                    .padding(.leading, 8)
             }
-
-            menuButton("Open ~/.aignals") { vm.revealAignalsHome() }
-            menuButton("About Aignals…") { openWindow(id: "about") }
-
-            Toggle("Launch at Login", isOn: Binding(
-                get: { vm.launchAtLogin },
-                set: { vm.launchAtLogin = $0 }
-            ))
-            .toggleStyle(.checkbox)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 4)
 
             Divider()
                 .padding(.vertical, 2)
@@ -130,6 +118,49 @@ struct MenuContent: View {
                 .keyboardShortcut("q")
         }
         .padding(.vertical, 6)
+    }
+
+    /// The folded config-class items (ADR-27): install hooks/CLI, Open
+    /// ~/.aignals, About, the global sound toggle, and the one-way Enable
+    /// Launch at Login button.
+    @ViewBuilder
+    private var settingsItems: some View {
+        if !vm.claudeHooksInstalled {
+            menuButton("Install Claude Code Hooks…") {
+                runInstall(vm.installClaudeHooks,
+                           successTitle: "Hooks installed",
+                           successInfo: "Aignals will now light up when Claude Code is working.",
+                           failureTitle: "Couldn't install hooks") { "Edit ~/.claude/settings.json manually. Error: \($0)" }
+            }
+        }
+
+        if !vm.hookIsLinked {
+            menuButton("Install aignals-hook CLI…") {
+                runInstall(vm.linkHookCLI,
+                           successTitle: "Linked",
+                           successInfo: "Symlinked aignals-hook into ~/.local/bin. If that's not on your PATH, add: export PATH=\"$HOME/.local/bin:$PATH\"",
+                           failureTitle: "Couldn't link CLI") { $0.localizedDescription }
+            }
+        }
+
+        menuButton("Open ~/.aignals") { vm.revealAignalsHome() }
+        menuButton("About Aignals…") { openWindow(id: "about") }
+
+        // Global sound toggle (ADR-20): bound to config.soundEnabled through the
+        // existing config setter.
+        Toggle("Play sounds", isOn: Binding(
+            get: { vm.soundEnabled },
+            set: { vm.soundEnabled = $0 }
+        ))
+        .toggleStyle(.checkbox)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+
+        // One-way Enable Launch at Login (ADR-26/INV-15): shown only while off;
+        // tapping enables it and bumps the observable version so it hides now.
+        if !vm.launchAtLogin {
+            menuButton("Enable Launch at Login") { vm.enableLaunchAtLogin() }
+        }
     }
 
     private func menuButton(_ title: String, action: @escaping () -> Void) -> some View {
@@ -205,6 +236,14 @@ private struct SessionRow: View {
             }
 
             Spacer(minLength: 4)
+
+            Button {
+                vm.setMuted(!vm.isMuted(session), for: session)
+            } label: {
+                Image(systemName: vm.isMuted(session) ? "speaker.slash.fill" : "speaker.wave.2")
+            }
+            .buttonStyle(.borderless)
+            .help(vm.isMuted(session) ? "Unmute this session" : "Mute this session")
 
             Button {
                 vm.setPinned(!vm.isPinned(session), for: session)

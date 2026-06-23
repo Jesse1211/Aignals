@@ -27,6 +27,21 @@ final class AppViewModel {
     private let watcher: FSEventsWatcher
     private let sweeper: PIDSweeper
 
+    // MARK: Sound playback bookkeeping (ADR-21/22/23/24)
+
+    /// Last-known state per session id, so a change can be classified as a
+    /// TRANSITION (compare to the prior value) vs. a first observation. A
+    /// session id absent from this map is being seen for the first time
+    /// (startup seed or adoption) and never plays a sound (ADR-22).
+    private var lastKnownState: [String: SessionState] = [:]
+
+    /// Last wall-clock instant a sound played for a given session id, used to
+    /// throttle to at most one sound per `soundThrottle` seconds (ADR-22).
+    private var lastSoundAt: [String: Date] = [:]
+
+    /// Minimum gap between two sounds for the SAME session (ADR-22).
+    private let soundThrottle: TimeInterval = 3
+
     init() {
         let paths = Paths()
         try? paths.ensureDirectories()
@@ -50,9 +65,19 @@ final class AppViewModel {
         // Prune orphaned overrides whenever the session set changes (covers the
         // normal SessionEnd path: FSEvents deletes the file → store.remove, which
         // never touches overrides). INV-10. (ADR-12)
+        //
+        // We ALSO drive sound playback off the same stream (ADR-24): on every
+        // change we diff the current sessions against `lastKnownState` and play
+        // an alert sound for any session that just transitioned INTO a
+        // waiting state. The seed above already populated `lastKnownState`, so
+        // sessions present at launch are treated as known and never fire a
+        // startup sound-storm (ADR-22).
         let stream = store.changes
         Task { @MainActor [weak self] in
-            for await _ in stream { self?.pruneOrphanedOverrides() }
+            for await _ in stream {
+                self?.handleSessionSounds()
+                self?.pruneOrphanedOverrides()
+            }
         }
     }
 
@@ -68,6 +93,14 @@ final class AppViewModel {
 
         for url in urls where url.pathExtension == "json" {
             store.loadFromDisk(path: url)
+        }
+
+        // Record the seeded sessions as already-known so their first appearance
+        // in `store.changes` is NOT classified as a transition — suppressing a
+        // startup sound-storm (ADR-22). Sessions adopted later via a hook event
+        // are likewise first observed (absent from the map) and stay silent.
+        for session in store.sessions {
+            lastKnownState[session.sessionID] = session.state
         }
     }
 
@@ -126,6 +159,19 @@ extension AppViewModel {
         overridesVersion &+= 1
     }
 
+    /// Whether this session's sound is muted (ADR-20). Defaults to false.
+    func isMuted(_ session: Session) -> Bool {
+        _ = overridesVersion // establish observation dependency
+        return overrideStore.override(for: session.sessionID)?.muted ?? false
+    }
+
+    /// Toggle a session's per-row mute (ADR-20). A muted session is skipped by
+    /// the sound trigger even when global sound is on.
+    func setMuted(_ muted: Bool, for session: Session) {
+        overrideStore.setMuted(muted, for: session.sessionID)
+        overridesVersion &+= 1
+    }
+
     /// Persist a new explicit order for the given on-screen ordering
     /// (ADR-16/INV-11). A drag never moves a row between the pinned and unpinned
     /// groups (rule 1 — pinned-first — would immediately override that anyway),
@@ -169,6 +215,86 @@ extension AppViewModel {
     func pruneOrphanedOverrides() {
         let live = Set(store.sessions.map(\.sessionID))
         overrideStore.prune(keepingIDs: live)
+    }
+}
+
+// MARK: - Sound playback (ADR-21/22/23/24, INV-13)
+
+extension AppViewModel {
+    /// Diff the current sessions against `lastKnownState` and play an alert
+    /// sound for any session that just TRANSITIONED INTO a waiting state
+    /// (waiting_permission → "Ping", waiting_input → "Glass"; ADR-23).
+    ///
+    /// Gating (ADR-21/22/24, INV-13): a sound fires only when
+    ///   - the new state is `.waitingPermission` or `.waitingInput` (never
+    ///     `.working`/`.disconnected`); AND
+    ///   - the session was already KNOWN (present in `lastKnownState`) — a
+    ///     first observation (startup seed or hook adoption) is silent; AND
+    ///   - the state actually CHANGED from the prior value; AND
+    ///   - `config.soundEnabled`; AND
+    ///   - the session is not per-row muted; AND
+    ///   - at least `soundThrottle` seconds elapsed since this session last
+    ///     played (per-session throttle).
+    ///
+    /// `lastKnownState` is updated for EVERY current session on every call so
+    /// the next diff has a fresh baseline; ids no longer present fall out via
+    /// the prune pass below.
+    private func handleSessionSounds() {
+        let now = Date()
+        let soundOn = config.soundEnabled
+        var live = Set<String>()
+
+        for session in store.sessions {
+            let id = session.sessionID
+            live.insert(id)
+            let previous = lastKnownState[id]
+            lastKnownState[id] = session.state
+
+            // First observation (seed/adoption) or unchanged state: no sound.
+            guard let previous, previous != session.state else { continue }
+            guard let sound = Self.sound(forTransitionInto: session.state) else { continue }
+            guard soundOn else { continue }
+            guard overrideStore.override(for: id)?.muted != true else { continue }
+
+            if let last = lastSoundAt[id], now.timeIntervalSince(last) < soundThrottle {
+                continue
+            }
+            lastSoundAt[id] = now
+            Self.play(sound)
+        }
+
+        // Forget bookkeeping for sessions that have gone away so a future
+        // session reusing the id (unlikely) starts fresh, and the maps don't
+        // grow unbounded.
+        lastKnownState = lastKnownState.filter { live.contains($0.key) }
+        lastSoundAt = lastSoundAt.filter { live.contains($0.key) }
+    }
+
+    /// The macOS system sound name for a transition INTO `state`, or `nil` for
+    /// states that never alert (ADR-21: working/disconnected are silent). 🟡
+    /// waiting_permission is the urgent one (Ping); 🟢 waiting_input is softer
+    /// (Glass) — ADR-23.
+    private static func sound(forTransitionInto state: SessionState) -> String? {
+        switch state {
+        case .waitingPermission: return "Ping"
+        case .waitingInput: return "Glass"
+        case .working, .disconnected: return nil
+        }
+    }
+
+    /// Play a named macOS system sound. Prefers `NSSound(named:)`; falls back to
+    /// `afplay` on the bundled `.aiff` if the named sound can't be resolved.
+    private static func play(_ name: String) {
+        if let sound = NSSound(named: NSSound.Name(name)) {
+            sound.play()
+            return
+        }
+        let path = "/System/Library/Sounds/\(name).aiff"
+        guard FileManager.default.fileExists(atPath: path) else { return }
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/usr/bin/afplay")
+        proc.arguments = [path]
+        try? proc.run()
     }
 }
 
@@ -266,7 +392,26 @@ extension AppViewModel {
     }
 
     var launchAtLogin: Bool {
-        get { config.launchAtLogin }
-        set { var c = config; c.launchAtLogin = newValue; config = c }
+        _ = installVersion // re-derive after enableLaunchAtLogin() so the button hides now
+        return config.launchAtLogin
+    }
+
+    /// One-way enable for launch-at-login (ADR-26/INV-15). The menu shows an
+    /// "Enable Launch at Login" button only while this is off; tapping it sets
+    /// the flag and bumps `installVersion` so the button hides immediately
+    /// (mirroring the Install-items refresh pattern). Disabling is done in
+    /// System Settings.
+    func enableLaunchAtLogin() {
+        var c = config
+        c.launchAtLogin = true
+        config = c
+        installVersion &+= 1
+    }
+
+    /// Global sound toggle backing (ADR-20). Reads/writes
+    /// `AignalsConfig.soundEnabled` through the existing config setter.
+    var soundEnabled: Bool {
+        get { config.soundEnabled }
+        set { var c = config; c.soundEnabled = newValue; config = c }
     }
 }
