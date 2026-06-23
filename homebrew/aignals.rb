@@ -1,5 +1,5 @@
 cask "aignals" do
-  version "0.1.0"
+  version "0.2.0"
   sha256 "REPLACE-WITH-RELEASE-CHECKSUM"
 
   url "https://github.com/Jesse1211/Aignals/releases/download/v#{version}/Aignals-#{version}.dmg"

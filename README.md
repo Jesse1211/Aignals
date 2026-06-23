@@ -9,7 +9,7 @@ brew tap Jesse1211/aignals
 brew install --cask aignals
 ```
 
-Or download `Aignals-0.1.0.dmg` from the [latest release](https://github.com/Jesse1211/Aignals/releases/latest). On first launch, right-click → Open to bypass Gatekeeper (the build is self-signed).
+Or download `Aignals-0.2.0.dmg` from the [latest release](https://github.com/Jesse1211/Aignals/releases/latest). On first launch, right-click → Open to bypass Gatekeeper (the build is self-signed).
 
 After installing the app, run **Install Claude Code Hooks…** from the menu (or accept the first-launch prompt) to wire it up.
 
@@ -35,9 +35,14 @@ Clicking the icon opens a panel with **one row per session**, sorted **pinned-fi
 | **Subtitle** | What the session is doing right now, e.g. `Editing MenuContent.swift`, `Running npm test`, `Waiting for input` — followed by the elapsed time |
 | **Elapsed time** | Ticks **live every second** while the panel is open (e.g. `5s` → `6s` → `1m`) |
 | **📌 Pin button** | Pin a session to keep it on top regardless of state changes; click again to unpin |
+| **🔇 Mute button** | Silence sound alerts for just this session; click again to unmute |
 | **✕ Remove** | Shown only on **gray (disconnected)** rows — removes the dead session and its saved preferences |
 
-Rows can be **drag-reordered**; the order persists. Below the sessions are the actions: Install Claude Code Hooks, Install aignals-hook CLI, Open `~/.aignals`, About, Launch at Login, and Quit.
+Rows can be **drag-reordered**; the order persists. Below the sessions, a **Settings** button expands the rest: Install Claude Code Hooks, Install aignals-hook CLI, Open `~/.aignals`, About, a global sound toggle, and Enable Launch at Login. **Quit** stays outside the fold.
+
+## Sound alerts
+
+When a session transitions into a state that needs you — 🟡 (waiting for permission) or 🟢 (waiting for input) — Aignals plays a short macOS system sound (a different sound for each, so you can tell which kind of attention is needed). Transitions into 🔴 (working) are silent. Sounds are throttled (at most once per session every few seconds, and never on app launch). Mute a single session with its 🔇 button, or turn all sound off with the global toggle under **Settings**.
 
 ## How it works
 
@@ -52,7 +57,7 @@ The hook events map to states like this:
 | PreToolUse | `on-pretool` | 🔴 `working` (+ current action) |
 | Notification (permission_prompt) | `on-permission` | 🟡 `waiting_permission` |
 | PostToolUse | `on-posttool` | 🔴 `working` (after Allow) |
-| PermissionDenied | `on-denied` | 🔴 `working` (after Deny) |
+| PermissionDenied | `on-permission-denied` | 🔴 `working` (after Deny) |
 | Stop / Notification (idle_prompt) | `on-stop` / `on-idle` | 🟢 `waiting_input` |
 | SessionEnd | `on-sessionend` | file deleted (light disappears) |
 
@@ -99,7 +104,7 @@ echo '{"session_id":"demo"}' | "$HOOK" on-sessionend
 
 Notes:
 
-- **`on-sessionstart` creates** a session; the other update subcommands require the session file to already exist (they no-op if it doesn't).
+- **`on-sessionstart` creates** a session. Update subcommands (`on-prompt`, `on-pretool`, `on-permission`, `on-stop`, etc.) also **create** the session file if it doesn't exist yet — this is how Aignals adopts a session that was already running before the hooks were installed (it appears on its next activity). Only `on-sessionend` no-ops on a missing file.
 - Use a **different `session_id`** to add another light. Open several to see the menu-bar count, e.g. `🔴1 🟡1 🟢2`.
 - Inspect or clear the current sessions:
 
