@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Aignals — Theme Popover</title>
+<style>
+  :root{font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;
+    --red:#ff453a;--yellow:#ffd60a;--green:#32d74b;--gray:#8e8e93;}
+  *{box-sizing:border-box}
+  body{margin:0;background:
+    radial-gradient(1000px 600px at 15% -10%,#5b6cff33,transparent),
+    radial-gradient(900px 500px at 95% 0%,#ff5d9b22,transparent),#0e0e13;
+    color:#fff;padding:40px 24px 100px}
+  h1{font-size:18px;font-weight:700;opacity:.9;margin:0 0 4px;text-align:center}
+  .sub{text-align:center;font-size:13px;opacity:.5;margin:0 0 44px}
+  .stage{display:flex;gap:90px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .cell{display:flex;flex-direction:column;align-items:center}
+  .cell .label{font-size:14px;font-weight:600;margin-bottom:6px}
+  .cell .desc{font-size:11px;opacity:.5;margin-bottom:20px;text-align:center;max-width:300px;line-height:1.5}
+
+  /* glass-dark panel base */
+  .panel{width:300px;border-radius:14px;position:relative;
+    background:rgba(28,28,36,.66);-webkit-backdrop-filter:blur(40px) saturate(180%);backdrop-filter:blur(40px) saturate(180%);
+    border:.5px solid rgba(255,255,255,.12);box-shadow:0 18px 44px rgba(0,0,0,.5),inset 0 .5px 0 rgba(255,255,255,.18)}
+  .hdr{display:flex;align-items:center;justify-content:space-between;padding:11px 13px 9px}
+  .brand{display:flex;align-items:center;gap:7px}
+  .brand .logo{width:16px;height:16px;border-radius:5px;background:conic-gradient(from 220deg,var(--red),var(--yellow),var(--green),var(--red))}
+  .brand .nm{font-size:12px;font-weight:700;letter-spacing:.5px}
+  .count{display:flex;gap:5px;font-size:11px;font-weight:700}
+  .count i b::before{content:'';width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:3px}
+  .count .g b::before{background:var(--green);box-shadow:0 0 4px var(--green)}
+  .hair{height:.5px;border:0;margin:0 12px;background:rgba(255,255,255,.1)}
+  .settings{padding:4px 8px 8px}
+  .item{display:flex;align-items:center;gap:9px;padding:8px 8px;font-size:12.5px;border-radius:8px;cursor:pointer}
+  .item:hover{background:rgba(255,255,255,.07)}
+  .item .chev{margin-left:auto;opacity:.5;font-size:11px}
+  .item.active-parent{background:rgba(255,255,255,.09)}
+  .item.danger{color:var(--red)}
+  .ftr{padding:6px 12px 12px;display:flex;justify-content:flex-end;font-size:12px;opacity:.75}
+
+  /* ── the popover card that slides out to the side ── */
+  .popover{position:absolute;top:54px;width:208px;border-radius:12px;padding:6px;
+    background:rgba(40,40,50,.82);-webkit-backdrop-filter:blur(50px) saturate(180%);backdrop-filter:blur(50px) saturate(180%);
+    border:.5px solid rgba(255,255,255,.16);box-shadow:0 22px 50px rgba(0,0,0,.6),inset 0 .5px 0 rgba(255,255,255,.2);
+    z-index:5}
+  .popover.right{left:calc(100% + 10px)}
+  .popover.left{right:calc(100% + 10px)}
+  /* little connector caret */
+  .popover.right::before{content:'';position:absolute;left:-6px;top:18px;width:12px;height:12px;rotate:45deg;
+    background:rgba(40,40,50,.82);border-left:.5px solid rgba(255,255,255,.16);border-bottom:.5px solid rgba(255,255,255,.16)}
+  .popover.left::before{content:'';position:absolute;right:-6px;top:18px;width:12px;height:12px;rotate:45deg;
+    background:rgba(40,40,50,.82);border-right:.5px solid rgba(255,255,255,.16);border-top:.5px solid rgba(255,255,255,.16)}
+
+  .po-title{font-size:10px;opacity:.5;text-transform:uppercase;letter-spacing:.7px;font-weight:700;padding:6px 8px 4px}
+  .opt{display:flex;align-items:center;gap:10px;padding:8px 8px;border-radius:8px;font-size:12.5px;cursor:pointer}
+  .opt:hover{background:rgba(255,255,255,.08)}
+  .opt.sel{background:rgba(255,255,255,.12)}
+  .opt .swatch{width:26px;height:18px;border-radius:5px;flex:0 0 auto;border:.5px solid rgba(255,255,255,.2)}
+  .opt .check{margin-left:auto;font-size:12px;color:var(--green)}
+  .opt .check.hidden{visibility:hidden}
+  /* swatches preview each theme */
+  .sw-light{background:linear-gradient(135deg,#f4f4f7,#dcdce4)}
+  .sw-dark{background:linear-gradient(135deg,#3a3a48,#1e1e28)}
+  .sw-term{background:linear-gradient(135deg,#0c0f0a,#143d1c);box-shadow:inset 0 0 6px #2fff7a55}
+  .sw-vibe{background:linear-gradient(135deg,#ff453a,#ffd60a 50%,#32d74b)}
+
+  .footnote{margin-top:54px;text-align:center;font-size:12px;opacity:.45;line-height:1.7;max-width:680px;margin-left:auto;margin-right:auto}
+  .footnote code{background:rgba(255,255,255,.08);padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+  <h1>Aignals — Theme as a pop-out card</h1>
+  <p class="sub">Click "Theme ▸" in Settings → a card slides out to the side, one theme per row (with a live swatch). Two side options below.</p>
+
+  <div class="stage">
+
+    <!-- A: opens to the RIGHT -->
+    <div class="cell">
+      <div class="label">A · slides out RIGHT</div>
+      <div class="desc">Click "Theme" and the card extends to the right of the panel, like a native submenu. Each row: color swatch + name + ✓ on the active one.</div>
+      <div class="panel">
+        <div class="hdr"><div class="brand"><span class="logo"></span><span class="nm">AIGNALS</span></div>
+          <div class="count"><i class="g"><b>idle</b></i></div></div>
+        <hr class="hair"/>
+        <div class="settings">
+          <div class="item">⚙️ Settings <span class="chev">▾</span></div>
+          <div class="item active-parent">🎨 Theme <span class="chev">▸</span></div>
+          <div class="item">🔗 Install Claude Code Hooks…</div>
+          <div class="item">📂 Open ~/.aignals</div>
+          <div class="item">ℹ️ About Aignals…</div>
+          <div class="item">🔈 Play sounds <span class="chev">✓</span></div>
+          <div class="item danger">🗑️ Uninstall Aignals…</div>
+        </div>
+        <hr class="hair"/>
+        <div class="ftr">⏻ Quit</div>
+
+        <!-- popover -->
+        <div class="popover right">
+          <div class="po-title">Theme</div>
+          <div class="opt"><span class="swatch sw-light"></span>Glass Light<span class="check hidden">✓</span></div>
+          <div class="opt sel"><span class="swatch sw-dark"></span>Glass Dark<span class="check">✓</span></div>
+          <div class="opt"><span class="swatch sw-term"></span>Terminal<span class="check hidden">✓</span></div>
+          <div class="opt"><span class="swatch sw-vibe"></span>Vibrant<span class="check hidden">✓</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- B: opens to the LEFT -->
+    <div class="cell">
+      <div class="label">B · slides out LEFT</div>
+      <div class="desc">Same card, extends to the left. Better when the menu-bar item sits on the right side of the screen (less likely to clip off-screen).</div>
+      <div class="panel">
+        <div class="hdr"><div class="brand"><span class="logo"></span><span class="nm">AIGNALS</span></div>
+          <div class="count"><i class="g"><b>idle</b></i></div></div>
+        <hr class="hair"/>
+        <div class="settings">
+          <div class="item">⚙️ Settings <span class="chev">▾</span></div>
+          <div class="item active-parent">🎨 Theme <span class="chev">▸</span></div>
+          <div class="item">🔗 Install Claude Code Hooks…</div>
+          <div class="item">📂 Open ~/.aignals</div>
+          <div class="item">ℹ️ About Aignals…</div>
+          <div class="item">🔈 Play sounds <span class="chev">✓</span></div>
+          <div class="item danger">🗑️ Uninstall Aignals…</div>
+        </div>
+        <hr class="hair"/>
+        <div class="ftr">⏻ Quit</div>
+
+        <div class="popover left">
+          <div class="po-title">Theme</div>
+          <div class="opt"><span class="swatch sw-light"></span>Glass Light<span class="check hidden">✓</span></div>
+          <div class="opt sel"><span class="swatch sw-dark"></span>Glass Dark<span class="check">✓</span></div>
+          <div class="opt"><span class="swatch sw-term"></span>Terminal<span class="check hidden">✓</span></div>
+          <div class="opt"><span class="swatch sw-vibe"></span>Vibrant<span class="check hidden">✓</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <p class="footnote">
+    SwiftUI: the "Theme" row is a button that toggles a side <code>.popover(arrowEdge:)</code> (or a custom overlay card). Each row carries a live mini-swatch so you preview the theme before picking; the active theme shows a ✓.
+    Selecting re-styles the whole panel instantly and saves to <code>AignalsConfig.theme</code>. Slide-in animation can come in the animation pass.
+  </p>
+</body>
+</html>

@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Aignals — Style Gallery</title>
+<style>
+  :root {
+    font-family: -apple-system, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+    --red:    #ff453a;
+    --yellow: #ffd60a;
+    --green:  #32d74b;
+    --gray:   #8e8e93;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1000px 600px at 15% -10%, #5b6cff44, transparent),
+      radial-gradient(900px 500px at 95% 0%, #ff5d9b33, transparent),
+      #0e0e13;
+    color: #fff;
+    padding: 40px 24px 90px;
+  }
+  h1 { font-size: 18px; font-weight: 700; opacity: .9; margin: 0 0 4px; text-align: center; }
+  .sub { text-align: center; font-size: 13px; opacity: .5; margin: 0 0 36px; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 320px));
+    gap: 44px 40px;
+    justify-content: center;
+  }
+  .cell { display: flex; flex-direction: column; align-items: center; }
+  .cell .label {
+    font-size: 13px; font-weight: 600; margin-bottom: 4px; letter-spacing: .3px;
+  }
+  .cell .desc { font-size: 11px; opacity: .5; margin-bottom: 14px; text-align: center; max-width: 300px; line-height: 1.5; }
+
+  .panel { width: 300px; border-radius: 14px; overflow: hidden; }
+
+  /* shared inner structure */
+  .hdr { display:flex; align-items:center; justify-content:space-between; padding: 11px 13px 9px; }
+  .brand { display:flex; align-items:center; gap:7px; }
+  .brand .logo { width:16px; height:16px; border-radius:5px;
+    background: conic-gradient(from 220deg, var(--red), var(--yellow), var(--green), var(--red)); }
+  .brand .nm { font-size:12px; font-weight:700; letter-spacing:.5px; }
+  .count { display:flex; gap:5px; font-size:11px; font-weight:700; }
+  .count i { display:inline-flex; align-items:center; gap:3px; }
+  .count i b::before { content:''; width:6px; height:6px; border-radius:50%; display:inline-block; margin-right:3px; }
+  .count .r b::before { background:var(--red);    box-shadow:0 0 4px var(--red); }
+  .count .y b::before { background:var(--yellow); box-shadow:0 0 4px var(--yellow); }
+  .count .g b::before { background:var(--green);  box-shadow:0 0 4px var(--green); }
+
+  .rows { padding: 4px 8px 8px; }
+  .row { display:flex; align-items:center; gap:10px; padding:8px; border-radius:9px; }
+  .dot { flex:0 0 auto; width:10px; height:10px; border-radius:50%; }
+  .dot.red{background:var(--red)} .dot.yellow{background:var(--yellow)}
+  .dot.green{background:var(--green)} .dot.gray{background:var(--gray);opacity:.7}
+  .glow .dot.red{box-shadow:0 0 8px 1px var(--red)}
+  .glow .dot.yellow{box-shadow:0 0 8px 1px var(--yellow)}
+  .glow .dot.green{box-shadow:0 0 7px 1px var(--green)}
+  .body{flex:1 1 auto; min-width:0}
+  .title{font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .ssub{font-size:11px; opacity:.55; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .ctrl{font-size:12px; opacity:.45}
+  .ftr{padding:6px 10px 10px; display:flex; align-items:center; justify-content:space-between; font-size:12px; opacity:.75}
+  .hair{height:.5px; border:0; margin:0 12px;}
+
+  /* ════════ STYLE 1: Glass (the previous one) ════════ */
+  .s-glass {
+    background: rgba(28,28,36,.62);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+    backdrop-filter: blur(40px) saturate(180%);
+    border:.5px solid rgba(255,255,255,.12);
+    box-shadow:0 18px 44px rgba(0,0,0,.5), inset 0 .5px 0 rgba(255,255,255,.18);
+  }
+  .s-glass .hair{background:rgba(255,255,255,.1)}
+  .s-glass .row:hover{background:rgba(255,255,255,.07)}
+
+  /* ════════ STYLE 2: Soft Native (light, Bartender-like) ════════ */
+  .s-native {
+    background:#fbfbfd; color:#1c1c1e;
+    border:.5px solid rgba(0,0,0,.1);
+    box-shadow:0 16px 40px rgba(0,0,0,.25);
+  }
+  .s-native .nm{color:#1c1c1e}
+  .s-native .ssub{opacity:.5}
+  .s-native .hair{background:rgba(0,0,0,.08)}
+  .s-native .row:hover{background:rgba(0,0,0,.045)}
+  .s-native .ftr{opacity:.6}
+
+  /* ════════ STYLE 3: Terminal / Mono (hacker) ════════ */
+  .s-term {
+    background:#0c0f0a; color:#c8facc;
+    font-family: "SF Mono", "JetBrains Mono", ui-monospace, monospace;
+    border:1px solid #1d3b22;
+    box-shadow:0 0 0 1px #0a1f0d, 0 16px 40px rgba(0,0,0,.6);
+  }
+  .s-term .brand .logo{border-radius:2px}
+  .s-term .nm{color:#7dffa0; font-weight:600}
+  .s-term .title{font-weight:500; color:#d8ffe0}
+  .s-term .ssub{color:#5aa86a; opacity:1}
+  .s-term .hair{background:#1d3b22}
+  .s-term .dot{border-radius:1px}
+  .s-term .row::before{content:'›'; color:#3c6b46; margin-right:-4px}
+  .s-term .row:hover{background:#102713}
+  .s-term .ftr{color:#5aa86a}
+
+  /* ════════ STYLE 4: Vibrant / Gradient cards ════════ */
+  .s-vibe {
+    background:#16121f;
+    border:.5px solid rgba(255,255,255,.08);
+    box-shadow:0 18px 44px rgba(0,0,0,.55);
+  }
+  .s-vibe .row{margin-bottom:5px; background:linear-gradient(135deg, rgba(255,255,255,.05), rgba(255,255,255,.02)); border:.5px solid rgba(255,255,255,.06)}
+  .s-vibe .row.red   {background:linear-gradient(135deg, rgba(255,69,58,.18), rgba(255,69,58,.04)); border-color:rgba(255,69,58,.25)}
+  .s-vibe .row.yellow{background:linear-gradient(135deg, rgba(255,214,10,.16), rgba(255,214,10,.03)); border-color:rgba(255,214,10,.22)}
+  .s-vibe .row.green {background:linear-gradient(135deg, rgba(50,215,75,.15), rgba(50,215,75,.03)); border-color:rgba(50,215,75,.2)}
+  .s-vibe .hair{background:rgba(255,255,255,.08)}
+
+  /* ════════ STYLE 5: Minimal / Airy ════════ */
+  .s-min {
+    background:#fff; color:#111;
+    border:.5px solid rgba(0,0,0,.06);
+    box-shadow:0 14px 40px rgba(0,0,0,.18);
+  }
+  .s-min .nm{color:#111}
+  .s-min .rows{padding:6px 14px 12px}
+  .s-min .row{padding:11px 4px; gap:12px}
+  .s-min .title{font-weight:600; font-size:13.5px}
+  .s-min .ssub{opacity:.45; font-size:11px}
+  .s-min .dot{width:8px; height:8px}
+  .s-min .hair{background:rgba(0,0,0,.06)}
+  .s-min .row:hover{background:transparent}
+  .s-min .row:hover .title{opacity:.6}
+  .s-min .ftr{opacity:.5; padding:8px 14px 14px}
+
+  /* ════════ STYLE 6: Neumorphic / Slate ════════ */
+  .s-slate {
+    background:#23262e; color:#e6e8ee;
+    border:.5px solid rgba(255,255,255,.05);
+    box-shadow:0 18px 44px rgba(0,0,0,.5);
+  }
+  .s-slate .nm{color:#e6e8ee}
+  .s-slate .row{background:#262a33; margin-bottom:5px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 1px 2px rgba(0,0,0,.3);
+    border-radius:11px}
+  .s-slate .ssub{opacity:.45}
+  .s-slate .hair{background:rgba(255,255,255,.06)}
+
+  .footnote{margin-top:42px; text-align:center; font-size:12px; opacity:.45; line-height:1.7; max-width:680px; margin-left:auto; margin-right:auto;}
+</style>
+</head>
+<body>
+  <h1>Aignals — Style Gallery</h1>
+  <p class="sub">Same dropdown, six visual directions. Pick one (or mix — e.g. "Style 3 layout, Style 1 colors").</p>
+
+  <div class="grid">
+
+    <!-- 1 GLASS -->
+    <div class="cell">
+      <div class="label">① Glassmorphism</div>
+      <div class="desc">Frosted blur, glowing dots, follows system. The one you saw — futuristic, dev-tool vibe.</div>
+      <div class="panel s-glass glow">
+        <div class="hdr">
+          <div class="brand"><span class="logo"></span><span class="nm">AIGNALS</span></div>
+          <div class="count"><i class="r"><b>1</b></i><i class="y"><b>1</b></i><i class="g"><b>1</b></i></div>
+        </div>
+        <hr class="hair"/>
+        <div class="rows">
+          <div class="row red"><span class="dot red"></span><div class="body"><div class="title">my-app</div><div class="ssub">Editing main.swift · 4m</div></div><span class="ctrl">🔊 📌</span></div>
+          <div class="row yellow"><span class="dot yellow"></span><div class="body"><div class="title">api-service</div><div class="ssub">Waiting permission · 1m</div></div><span class="ctrl">🔊 📌</span></div>
+          <div class="row green"><span class="dot green"></span><div class="body"><div class="title">docs</div><div class="ssub">Idle · 2m</div></div><span class="ctrl">🔇 📌</span></div>
+        </div>
+        <hr class="hair"/>
+        <div class="ftr"><span>⚙️ Settings ▸</span><span>⏻ Quit</span></div>
+      </div>
+    </div>
+
+    <!-- 2 SOFT NATIVE -->
+    <div class="cell">
+      <div class="label">② Soft Native</div>
+      <div class="desc">Clean light glass, subtle. Blends with macOS like Bartender / Ice — safe & timeless.</div>
+      <div class="panel s-native glow">
+        <div class="hdr">
+          <div class="brand"><span class="logo"></span><span class="nm">AIGNALS</span></div>
+          <div class="count"><i class="r"><b>1</b></i><i class="y"><b>1</b></i><i class="g"><b>1</b></i></div>
+        </div>
+        <hr class="hair"/>
+        <div class="rows">
+          <div class="row"><span class="dot red"></span><div class="body"><div class="title">my-app</div><div class="ssub">Editing main.swift · 4m</div></div><span class="ctrl">🔊 📌</span></div>
+          <div class="row"><span class="dot yellow"></span><div class="body"><div class="title">api-service</div><div class="ssub">Waiting permission · 1m</div></div><span class="ctrl">🔊 📌</span></div>
+          <div class="row"><span class="dot green"></span><div class="body"><div class="title">docs</div><div class="ssub">Idle · 2m</div></div><span class="ctrl">🔇 📌</span></div>
+        </div>
+        <hr class="hair"/>
+        <div class="ftr"><span>⚙️ Settings ▸</span><span>⏻ Quit</span></div>
+      </div>
+    </div>
+
+    <!-- 3 TERMINAL -->
+    <div class="cell">
+      <div class="label">③ Terminal / Mono</div>
+      <div class="desc">Monospace, phosphor green, › prompts. Leans hard into the "AI agent / hacker" identity.</div>
+      <div class="panel s-term">
+        <div class="hdr">
+          <div class="brand"><span class="logo"></span><span class="nm">aignals</span></div>
+          <div class="count"><i class="r"><b>1</b></i><i class="y"><b>1</b></i><i class="g"><b>1</b></i></div>
+        </div>
+        <hr class="hair"/>
+        <div class="rows">
+          <div class="row"><span class="dot red"></span><div class="body"><div class="title">my-app</div><div class="ssub">editing main.swift · 4m</div></div><span class="ctrl">🔊</span></div>
+          <div class="row"><span class="dot yellow"></span><div class="body"><div class="title">api-service</div><div class="ssub">waiting perm · 1m</div></div><span class="ctrl">🔊</span></div>
+          <div class="row"><span class="dot green"></span><div class="body"><div class="title">docs</div><div class="ssub">idle · 2m</div></div><span class="ctrl">🔇</span></div>
+        </div>
+        <hr class="hair"/>
+        <div class="ftr"><span>⚙ settings</span><span>⏻ quit</span></div>
+      </div>
+    </div>
+
+    <!-- 4 VIBRANT -->
+    <div class="cell">
+      <div class="label">④ Vibrant Cards</div>
+      <div class="desc">Each row tinted by its state color. Status is unmissable at a glance — most "alive".</div>
+      <div class="panel s-vibe glow">
+        <div class="hdr">
+          <div class="brand"><span class="logo"></span><span class="nm">AIGNALS</span></div>
+          <div class="count"><i class="r"><b>1</b></i><i class="y"><b>1</b></i><i class="g"><b>1</b></i></div>
+        </div>
+        <hr class="hair"/>
+        <div class="rows">
+          <div class="row red"><span class="dot red"></span><div class="body"><div class="title">my-app</div><div class="ssub">Editing main.swift · 4m</div></div><span class="ctrl">🔊 📌</span></div>
+          <div class="row yellow"><span class="dot yellow"></span><div class="body"><div class="title">api-service</div><div class="ssub">Waiting permission · 1m</div></div><span class="ctrl">🔊 📌</span></div>
+          <div class="row green"><span class="dot green"></span><div class="body"><div class="title">docs</div><div class="ssub">Idle · 2m</div></div><span class="ctrl">🔇 📌</span></div>
+        </div>
+        <hr class="hair"/>
+        <div class="ftr"><span>⚙️ Settings ▸</span><span>⏻ Quit</span></div>
+      </div>
+    </div>
+
+    <!-- 5 MINIMAL -->
+    <div class="cell">
+      <div class="label">⑤ Minimal / Airy</div>
+      <div class="desc">No cards, no chrome. Pure typography + whitespace. Quietest, most "Apple Notes" clean.</div>
+      <div class="panel s-min">
+        <div class="hdr">
+          <div class="brand"><span class="logo"></span><span class="nm">AIGNALS</span></div>
+          <div class="count"><i class="r"><b>1</b></i><i class="y"><b>1</b></i><i class="g"><b>1</b></i></div>
+        </div>
+        <hr class="hair"/>
+        <div class="rows">
+          <div class="row"><span class="dot red"></span><div class="body"><div class="title">my-app</div><div class="ssub">Editing main.swift · 4m</div></div></div>
+          <div class="row"><span class="dot yellow"></span><div class="body"><div class="title">api-service</div><div class="ssub">Waiting permission · 1m</div></div></div>
+          <div class="row"><span class="dot green"></span><div class="body"><div class="title">docs</div><div class="ssub">Idle · 2m</div></div></div>
+        </div>
+        <hr class="hair"/>
+        <div class="ftr"><span>Settings</span><span>Quit</span></div>
+      </div>
+    </div>
+
+    <!-- 6 SLATE -->
+    <div class="cell">
+      <div class="label">⑥ Slate Cards</div>
+      <div class="desc">Soft raised cards on slate. Tactile, modern, calm. Like Linear / Things 3.</div>
+      <div class="panel s-slate glow">
+        <div class="hdr">
+          <div class="brand"><span class="logo"></span><span class="nm">AIGNALS</span></div>
+          <div class="count"><i class="r"><b>1</b></i><i class="y"><b>1</b></i><i class="g"><b>1</b></i></div>
+        </div>
+        <hr class="hair"/>
+        <div class="rows">
+          <div class="row"><span class="dot red"></span><div class="body"><div class="title">my-app</div><div class="ssub">Editing main.swift · 4m</div></div><span class="ctrl">🔊 📌</span></div>
+          <div class="row"><span class="dot yellow"></span><div class="body"><div class="title">api-service</div><div class="ssub">Waiting permission · 1m</div></div><span class="ctrl">🔊 📌</span></div>
+          <div class="row"><span class="dot green"></span><div class="body"><div class="title">docs</div><div class="ssub">Idle · 2m</div></div><span class="ctrl">🔇 📌</span></div>
+        </div>
+        <hr class="hair"/>
+        <div class="ftr"><span>⚙️ Settings ▸</span><span>⏻ Quit</span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <p class="footnote">
+    All six are buildable in SwiftUI. ①②⑥ follow the system appearance via <code>NSVisualEffectView</code>;
+    ③④⑤ are fixed-palette. You can also mix — tell me e.g. "⑥ layout but ① glass background" and I'll mock that next round.
+  </p>
+</body>
+</html>

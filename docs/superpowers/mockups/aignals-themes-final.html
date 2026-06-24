@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Aignals — Final Themes</title>
+<style>
+  :root {
+    font-family: -apple-system, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+    --red:#ff453a; --yellow:#ffd60a; --green:#32d74b; --gray:#8e8e93;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0;
+    background:
+      radial-gradient(1000px 600px at 15% -10%, #5b6cff33, transparent),
+      radial-gradient(900px 500px at 95% 0%, #ff5d9b22, transparent),
+      #0e0e13;
+    color:#fff; padding:40px 24px 90px;
+  }
+  h1{font-size:18px;font-weight:700;opacity:.9;margin:0 0 4px;text-align:center}
+  .sub{text-align:center;font-size:13px;opacity:.5;margin:0 0 36px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,320px));gap:44px 40px;justify-content:center}
+  .cell{display:flex;flex-direction:column;align-items:center}
+  .cell .label{font-size:13px;font-weight:600;margin-bottom:2px}
+  .cell .tag{font-size:11px;opacity:.45;margin-bottom:14px}
+  .cell .default-badge{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.5px;
+    background:var(--green);color:#04210b;border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle}
+
+  .panel{width:300px;border-radius:14px;overflow:hidden}
+  .hdr{display:flex;align-items:center;justify-content:space-between;padding:11px 13px 9px}
+  .brand{display:flex;align-items:center;gap:7px}
+  .brand .logo{width:16px;height:16px;border-radius:5px;
+    background:conic-gradient(from 220deg,var(--red),var(--yellow),var(--green),var(--red))}
+  .brand .nm{font-size:12px;font-weight:700;letter-spacing:.5px}
+  .count{display:flex;gap:5px;font-size:11px;font-weight:700}
+  .count i b::before{content:'';width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:3px}
+  .count .r b::before{background:var(--red);box-shadow:0 0 4px var(--red)}
+  .count .y b::before{background:var(--yellow);box-shadow:0 0 4px var(--yellow)}
+  .count .g b::before{background:var(--green);box-shadow:0 0 4px var(--green)}
+
+  .rows{padding:4px 8px 8px}
+  .row{display:flex;align-items:center;gap:10px;padding:8px;border-radius:9px}
+  .dot{flex:0 0 auto;width:10px;height:10px;border-radius:50%}
+  .dot.red{background:var(--red)} .dot.yellow{background:var(--yellow)}
+  .dot.green{background:var(--green)} .dot.gray{background:var(--gray);opacity:.7}
+  .glow .dot.red{box-shadow:0 0 8px 1px var(--red)}
+  .glow .dot.yellow{box-shadow:0 0 8px 1px var(--yellow)}
+  .glow .dot.green{box-shadow:0 0 7px 1px var(--green)}
+  .body{flex:1 1 auto;min-width:0}
+  .title{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ssub{font-size:11px;opacity:.55;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ctrl{font-size:12px;opacity:.45}
+  .hair{height:.5px;border:0;margin:0 12px}
+
+  /* ── Settings fold with theme switcher ── */
+  .settings{padding:4px 10px 10px}
+  .settings .row-item{display:flex;align-items:center;gap:9px;padding:7px 6px;font-size:12.5px;border-radius:7px}
+  .seg{display:flex;gap:4px;margin:6px 4px 2px;padding:3px;border-radius:9px;background:rgba(127,127,127,.16)}
+  .seg button{flex:1;all:unset;text-align:center;font-size:10.5px;font-weight:600;padding:5px 2px;border-radius:6px;cursor:pointer;opacity:.7}
+  .seg button.on{opacity:1;background:rgba(255,255,255,.9);color:#111;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+  .seg-label{font-size:10px;opacity:.5;text-transform:uppercase;letter-spacing:.6px;margin:4px 6px 0;font-weight:600}
+  .ftr{padding:6px 12px 12px;display:flex;align-items:center;justify-content:space-between;font-size:12px;opacity:.75}
+
+  /* ═══ THEME 1: GLASS LIGHT ═══ */
+  .t-glass-light{background:rgba(250,250,252,.78);-webkit-backdrop-filter:blur(40px) saturate(180%);backdrop-filter:blur(40px) saturate(180%);
+    border:.5px solid rgba(0,0,0,.08);box-shadow:0 18px 44px rgba(0,0,0,.28),inset 0 .5px 0 rgba(255,255,255,.6);color:#1c1c1e}
+  .t-glass-light .nm{color:#1c1c1e}
+  .t-glass-light .hair{background:rgba(0,0,0,.08)}
+  .t-glass-light .seg{background:rgba(0,0,0,.07)}
+  .t-glass-light .seg button.on{background:#fff;color:#111}
+
+  /* ═══ THEME 2: GLASS DARK (default) ═══ */
+  .t-glass-dark{background:rgba(28,28,36,.62);-webkit-backdrop-filter:blur(40px) saturate(180%);backdrop-filter:blur(40px) saturate(180%);
+    border:.5px solid rgba(255,255,255,.12);box-shadow:0 18px 44px rgba(0,0,0,.5),inset 0 .5px 0 rgba(255,255,255,.18)}
+  .t-glass-dark .hair{background:rgba(255,255,255,.1)}
+
+  /* ═══ THEME 3: TERMINAL ═══ */
+  .t-term{background:#0c0f0a;color:#c8facc;font-family:"SF Mono","JetBrains Mono",ui-monospace,monospace;
+    border:1px solid #1d3b22;box-shadow:0 0 0 1px #0a1f0d,0 16px 40px rgba(0,0,0,.6)}
+  .t-term .brand .logo{border-radius:2px}
+  .t-term .nm{color:#7dffa0;font-weight:600}
+  .t-term .title{color:#d8ffe0;font-weight:500}
+  .t-term .ssub{color:#5aa86a;opacity:1}
+  .t-term .hair{background:#1d3b22}
+  .t-term .dot{border-radius:1px}
+  .t-term .row::before{content:'›';color:#3c6b46;margin-right:-4px}
+  .t-term .seg{background:#102713}
+  .t-term .seg button{color:#7dffa0}
+  .t-term .seg button.on{background:#1d3b22;color:#b9ffc8}
+  .t-term .ftr{color:#5aa86a}
+
+  /* ═══ THEME 4: VIBRANT ═══ */
+  .t-vibe{background:#16121f;border:.5px solid rgba(255,255,255,.08);box-shadow:0 18px 44px rgba(0,0,0,.55)}
+  .t-vibe .row{margin-bottom:5px;border:.5px solid rgba(255,255,255,.06)}
+  .t-vibe .row.red{background:linear-gradient(135deg,rgba(255,69,58,.18),rgba(255,69,58,.04));border-color:rgba(255,69,58,.25)}
+  .t-vibe .row.yellow{background:linear-gradient(135deg,rgba(255,214,10,.16),rgba(255,214,10,.03));border-color:rgba(255,214,10,.22)}
+  .t-vibe .row.green{background:linear-gradient(135deg,rgba(50,215,75,.15),rgba(50,215,75,.03));border-color:rgba(50,215,75,.2)}
+  .t-vibe .hair{background:rgba(255,255,255,.08)}
+
+  .footnote{margin-top:42px;text-align:center;font-size:12px;opacity:.45;line-height:1.7;max-width:680px;margin:42px auto 0}
+  .footnote code{background:rgba(255,255,255,.08);padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+  <h1>Aignals — Final Themes</h1>
+  <p class="sub">4 user-selectable themes · default = Glass Dark · switch in Settings (segmented control)</p>
+
+  <div class="grid">
+    <!-- GLASS LIGHT -->
+    <div class="cell">
+      <div class="label">Glass Light</div>
+      <div class="tag">frosted · light</div>
+      <div class="panel t-glass-light glow">
+        <div class="hdr"><div class="brand"><span class="logo"></span><span class="nm">AIGNALS</span></div>
+          <div class="count"><i class="r"><b>1</b></i><i class="y"><b>1</b></i><i class="g"><b>1</b></i></div></div>
+        <hr class="hair"/>
+        <div class="rows">
+          <div class="row red"><span class="dot red"></span><div class="body"><div class="title">my-app</div><div class="ssub">Editing main.swift · 4m</div></div><span class="ctrl">🔊 📌</span></div>
+          <div class="row yellow"><span class="dot yellow"></span><div class="body"><div class="title">api-service</div><div class="ssub">Waiting permission · 1m</div></div><span class="ctrl">🔊 📌</span></div>
+          <div class="row green"><span class="dot green"></span><div class="body"><div class="title">docs</div><div class="ssub">Idle · 2m</div></div><span class="ctrl">🔇 📌</span></div>
+        </div>
+        <hr class="hair"/>
+        <div class="ftr"><span>⚙️ Settings ▸</span><span>⏻ Quit</span></div>
+      </div>
+    </div>
+
+    <!-- GLASS DARK -->
+    <div class="cell">
+      <div class="label">Glass Dark<span class="default-badge">DEFAULT</span></div>
+      <div class="tag">frosted · dark</div>
+      <div class="panel t-glass-dark glow">
+        <div class="hdr"><div class="brand"><span class="logo"></span><span class="nm">AIGNALS</span></div>
+          <div class="count"><i class="r"><b>1</b></i><i class="y"><b>1</b></i><i class="g"><b>1</b></i></div></div>
+        <hr class="hair"/>
+        <div class="rows">
+          <div class="row red"><span class="dot red"></span><div class="body"><div class="title">my-app</div><div class="ssub">Editing main.swift · 4m</div></div><span class="ctrl">🔊 📌</span></div>
+          <div class="row yellow"><span class="dot yellow"></span><div class="body"><div class="title">api-service</div><div class="ssub">Waiting permission · 1m</div></div><span class="ctrl">🔊 📌</span></div>
+          <div class="row green"><span class="dot green"></span><div class="body"><div class="title">docs</div><div class="ssub">Idle · 2m</div></div><span class="ctrl">🔇 📌</span></div>
+        </div>
+        <hr class="hair"/>
+        <div class="ftr"><span>⚙️ Settings ▸</span><span>⏻ Quit</span></div>
+      </div>
+    </div>
+
+    <!-- TERMINAL -->
+    <div class="cell">
+      <div class="label">Terminal</div>
+      <div class="tag">mono · phosphor green</div>
+      <div class="panel t-term">
+        <div class="hdr"><div class="brand"><span class="logo"></span><span class="nm">aignals</span></div>
+          <div class="count"><i class="r"><b>1</b></i><i class="y"><b>1</b></i><i class="g"><b>1</b></i></div></div>
+        <hr class="hair"/>
+        <div class="rows">
+          <div class="row"><span class="dot red"></span><div class="body"><div class="title">my-app</div><div class="ssub">editing main.swift · 4m</div></div><span class="ctrl">🔊</span></div>
+          <div class="row"><span class="dot yellow"></span><div class="body"><div class="title">api-service</div><div class="ssub">waiting perm · 1m</div></div><span class="ctrl">🔊</span></div>
+          <div class="row"><span class="dot green"></span><div class="body"><div class="title">docs</div><div class="ssub">idle · 2m</div></div><span class="ctrl">🔇</span></div>
+        </div>
+        <hr class="hair"/>
+        <div class="ftr"><span>⚙ settings</span><span>⏻ quit</span></div>
+      </div>
+    </div>
+
+    <!-- VIBRANT -->
+    <div class="cell">
+      <div class="label">Vibrant</div>
+      <div class="tag">state-tinted cards</div>
+      <div class="panel t-vibe glow">
+        <div class="hdr"><div class="brand"><span class="logo"></span><span class="nm">AIGNALS</span></div>
+          <div class="count"><i class="r"><b>1</b></i><i class="y"><b>1</b></i><i class="g"><b>1</b></i></div></div>
+        <hr class="hair"/>
+        <div class="rows">
+          <div class="row red"><span class="dot red"></span><div class="body"><div class="title">my-app</div><div class="ssub">Editing main.swift · 4m</div></div><span class="ctrl">🔊 📌</span></div>
+          <div class="row yellow"><span class="dot yellow"></span><div class="body"><div class="title">api-service</div><div class="ssub">Waiting permission · 1m</div></div><span class="ctrl">🔊 📌</span></div>
+          <div class="row green"><span class="dot green"></span><div class="body"><div class="title">docs</div><div class="ssub">Idle · 2m</div></div><span class="ctrl">🔇 📌</span></div>
+        </div>
+        <hr class="hair"/>
+        <div class="ftr"><span>⚙️ Settings ▸</span><span>⏻ Quit</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── The Settings → Theme switcher ── -->
+  <h1 style="margin-top:64px">Settings → Theme switcher</h1>
+  <p class="sub">How the theme picker appears inside the expanded Settings fold (shown on Glass Dark)</p>
+  <div class="grid" style="grid-template-columns:minmax(300px,320px)">
+    <div class="cell">
+      <div class="panel t-glass-dark glow">
+        <div class="hdr"><div class="brand"><span class="logo"></span><span class="nm">AIGNALS</span></div>
+          <div class="count"><i class="g"><b>idle</b></i></div></div>
+        <hr class="hair"/>
+        <div class="settings">
+          <div class="row-item">⚙️ Settings ▾</div>
+          <div class="seg-label">Theme</div>
+          <div class="seg">
+            <button>Light</button>
+            <button class="on">Dark</button>
+            <button>Term</button>
+            <button>Vibe</button>
+          </div>
+          <div style="padding-left:6px">
+            <div class="row-item">🔗 Install Claude Code Hooks…</div>
+            <div class="row-item">📂 Open ~/.aignals</div>
+            <div class="row-item">ℹ️ About Aignals…</div>
+            <div class="row-item">🔈 Play sounds ✓</div>
+            <div class="row-item">🚀 Enable Launch at Login</div>
+            <div class="row-item" style="color:var(--red)">🗑️ Uninstall Aignals…</div>
+          </div>
+        </div>
+        <hr class="hair"/>
+        <div class="ftr"><span></span><span>⏻ Quit</span></div>
+      </div>
+    </div>
+  </div>
+
+  <p class="footnote">
+    Theme persists to <code>AignalsConfig.theme</code> (new field, defaults to <code>glassDark</code>). Switching is instant — the whole panel re-styles via a single <code>Theme</code> enum threaded through the views.
+    Glass Light/Dark use <code>NSVisualEffectView</code>; Terminal/Vibrant are fixed palettes. The menu-bar icon is unaffected (macOS template constraints). Animations are a later pass.
+  </p>
+</body>
+</html>
