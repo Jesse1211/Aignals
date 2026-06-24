@@ -6,19 +6,24 @@ public struct AignalsConfig: Equatable, Codable, Sendable {
     /// Global sound toggle (ADR-20). Decodes to `true` when the key is absent so
     /// existing config.json files keep sound on after upgrade.
     public var soundEnabled: Bool
+    /// Selected visual theme (ADR-0810). Decodes to `.glassDark` when the key is
+    /// absent so existing config.json files land on the default after upgrade.
+    public var theme: Theme
 
-    public init(launchAtLogin: Bool, dismissedInstallPrompt: Bool, soundEnabled: Bool = true) {
+    public init(launchAtLogin: Bool, dismissedInstallPrompt: Bool, soundEnabled: Bool = true, theme: Theme = .glassDark) {
         self.launchAtLogin = launchAtLogin
         self.dismissedInstallPrompt = dismissedInstallPrompt
         self.soundEnabled = soundEnabled
+        self.theme = theme
     }
 
-    public static let `default` = AignalsConfig(launchAtLogin: false, dismissedInstallPrompt: false, soundEnabled: true)
+    public static let `default` = AignalsConfig(launchAtLogin: false, dismissedInstallPrompt: false, soundEnabled: true, theme: .glassDark)
 
     private enum CodingKeys: String, CodingKey {
         case launchAtLogin
         case dismissedInstallPrompt
         case soundEnabled
+        case theme
     }
 
     public init(from decoder: Decoder) throws {
@@ -26,6 +31,7 @@ public struct AignalsConfig: Equatable, Codable, Sendable {
         self.launchAtLogin = try container.decode(Bool.self, forKey: .launchAtLogin)
         self.dismissedInstallPrompt = try container.decode(Bool.self, forKey: .dismissedInstallPrompt)
         self.soundEnabled = try container.decodeIfPresent(Bool.self, forKey: .soundEnabled) ?? true
+        self.theme = try container.decodeIfPresent(Theme.self, forKey: .theme) ?? .glassDark
     }
 }
 

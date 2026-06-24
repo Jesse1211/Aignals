@@ -60,4 +60,29 @@ final class ConfigStoreTests: XCTestCase {
         let store = ConfigStore(paths: paths)
         XCTAssertEqual(store.config, .default)
     }
+
+    func testThemeDefaultsToGlassDark() throws {
+        let store = ConfigStore(paths: try tmpHome())
+        XCTAssertEqual(store.config.theme, .glassDark)
+    }
+
+    func testThemeRoundtrip() throws {
+        let paths = try tmpHome()
+        let store = ConfigStore(paths: paths)
+        var c = store.config
+        c.theme = .terminal
+        store.save(c)
+
+        let reload = ConfigStore(paths: paths)
+        XCTAssertEqual(reload.config.theme, .terminal)
+    }
+
+    func testThemeDecodesGlassDarkWhenAbsent() throws {
+        let paths = try tmpHome()
+        // Legacy config.json without `theme` must decode to Glass Dark.
+        try Data(#"{"launchAtLogin":false,"dismissedInstallPrompt":false,"soundEnabled":true}"#.utf8)
+            .write(to: paths.configFile)
+        let store = ConfigStore(paths: paths)
+        XCTAssertEqual(store.config.theme, .glassDark)
+    }
 }
