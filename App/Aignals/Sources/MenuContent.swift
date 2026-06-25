@@ -247,6 +247,32 @@ struct MenuContent: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
 
+        // Per-state sound pickers (ADR-28): shown only when sound is on. Each
+        // binds to the ViewModel bridge, which previews the choice on selection.
+        if vm.soundEnabled {
+            Picker("🟡 Permission", selection: Binding(
+                get: { vm.permissionSound },
+                set: { vm.permissionSound = $0 }
+            )) {
+                ForEach(AlertSound.allCases, id: \.self) { sound in
+                    Text(sound.displayName).tag(sound)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 2)
+
+            Picker("🟢 Input", selection: Binding(
+                get: { vm.inputSound },
+                set: { vm.inputSound = $0 }
+            )) {
+                ForEach(AlertSound.allCases, id: \.self) { sound in
+                    Text(sound.displayName).tag(sound)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 2)
+        }
+
         // One-way Enable Launch at Login (ADR-26/INV-15): shown only while off;
         // tapping enables it and bumps the observable version so it hides now.
         if !vm.launchAtLogin {
