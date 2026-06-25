@@ -289,7 +289,7 @@ extension AppViewModel {
 
             // First observation (seed/adoption) or unchanged state: no sound.
             guard let previous, previous != session.state else { continue }
-            guard let sound = Self.sound(forTransitionInto: session.state) else { continue }
+            guard let sound = sound(forTransitionInto: session.state) else { continue }
             guard soundOn else { continue }
             guard overrideStore.override(for: id)?.muted != true else { continue }
 
@@ -308,13 +308,14 @@ extension AppViewModel {
     }
 
     /// The macOS system sound name for a transition INTO `state`, or `nil` for
-    /// states that never alert (ADR-21: working/disconnected are silent). 🟡
-    /// waiting_permission is the urgent one (Ping); 🟢 waiting_input is softer
-    /// (Glass) — ADR-23.
-    private static func sound(forTransitionInto state: SessionState) -> String? {
+    /// states that never alert (ADR-21: working/disconnected are silent) and for
+    /// a state whose configured sound is `.none`. The 🟡/🟢 sounds are
+    /// user-selectable via `config.permissionSound` / `config.inputSound`
+    /// (ADR-28); defaults are Ping/Glass.
+    private func sound(forTransitionInto state: SessionState) -> String? {
         switch state {
-        case .waitingPermission: return "Ping"
-        case .waitingInput: return "Glass"
+        case .waitingPermission: return config.permissionSound.systemSoundName
+        case .waitingInput:      return config.inputSound.systemSoundName
         case .working, .disconnected: return nil
         }
     }
