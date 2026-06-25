@@ -9,21 +9,31 @@ public struct AignalsConfig: Equatable, Codable, Sendable {
     /// Selected visual theme (ADR-0810). Decodes to `.glassDark` when the key is
     /// absent so existing config.json files land on the default after upgrade.
     public var theme: Theme
+    /// Alert sound for 🟡 waiting-permission transitions (ADR-28/31). Decodes to
+    /// `.ping` when absent so existing config.json keeps the old default.
+    public var permissionSound: AlertSound
+    /// Alert sound for 🟢 waiting-input transitions (ADR-28/31). Decodes to
+    /// `.glass` when absent so existing config.json keeps the old default.
+    public var inputSound: AlertSound
 
-    public init(launchAtLogin: Bool, dismissedInstallPrompt: Bool, soundEnabled: Bool = true, theme: Theme = .glassDark) {
+    public init(launchAtLogin: Bool, dismissedInstallPrompt: Bool, soundEnabled: Bool = true, theme: Theme = .glassDark, permissionSound: AlertSound = .ping, inputSound: AlertSound = .glass) {
         self.launchAtLogin = launchAtLogin
         self.dismissedInstallPrompt = dismissedInstallPrompt
         self.soundEnabled = soundEnabled
         self.theme = theme
+        self.permissionSound = permissionSound
+        self.inputSound = inputSound
     }
 
-    public static let `default` = AignalsConfig(launchAtLogin: false, dismissedInstallPrompt: false, soundEnabled: true, theme: .glassDark)
+    public static let `default` = AignalsConfig(launchAtLogin: false, dismissedInstallPrompt: false, soundEnabled: true, theme: .glassDark, permissionSound: .ping, inputSound: .glass)
 
     private enum CodingKeys: String, CodingKey {
         case launchAtLogin
         case dismissedInstallPrompt
         case soundEnabled
         case theme
+        case permissionSound
+        case inputSound
     }
 
     public init(from decoder: Decoder) throws {
@@ -32,6 +42,8 @@ public struct AignalsConfig: Equatable, Codable, Sendable {
         self.dismissedInstallPrompt = try container.decode(Bool.self, forKey: .dismissedInstallPrompt)
         self.soundEnabled = try container.decodeIfPresent(Bool.self, forKey: .soundEnabled) ?? true
         self.theme = try container.decodeIfPresent(Theme.self, forKey: .theme) ?? .glassDark
+        self.permissionSound = try container.decodeIfPresent(AlertSound.self, forKey: .permissionSound) ?? .ping
+        self.inputSound = try container.decodeIfPresent(AlertSound.self, forKey: .inputSound) ?? .glass
     }
 }
 

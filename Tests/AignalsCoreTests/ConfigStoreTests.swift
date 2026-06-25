@@ -85,4 +85,33 @@ final class ConfigStoreTests: XCTestCase {
         let store = ConfigStore(paths: paths)
         XCTAssertEqual(store.config.theme, .glassDark)
     }
+
+    func testSoundsDefaultToPingAndGlass() throws {
+        let store = ConfigStore(paths: try tmpHome())
+        XCTAssertEqual(store.config.permissionSound, .ping)
+        XCTAssertEqual(store.config.inputSound, .glass)
+    }
+
+    func testSoundsRoundtrip() throws {
+        let paths = try tmpHome()
+        let store = ConfigStore(paths: paths)
+        var c = store.config
+        c.permissionSound = .funk
+        c.inputSound = .none
+        store.save(c)
+
+        let reload = ConfigStore(paths: paths)
+        XCTAssertEqual(reload.config.permissionSound, .funk)
+        XCTAssertEqual(reload.config.inputSound, .none)
+    }
+
+    func testSoundsDecodeDefaultsWhenAbsent() throws {
+        let paths = try tmpHome()
+        // Legacy config.json without the sound keys must keep Ping/Glass.
+        try Data(#"{"launchAtLogin":false,"dismissedInstallPrompt":false,"soundEnabled":true,"theme":"glassDark"}"#.utf8)
+            .write(to: paths.configFile)
+        let store = ConfigStore(paths: paths)
+        XCTAssertEqual(store.config.permissionSound, .ping)
+        XCTAssertEqual(store.config.inputSound, .glass)
+    }
 }
