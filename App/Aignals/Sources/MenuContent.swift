@@ -250,27 +250,8 @@ struct MenuContent: View {
         // Per-state sound pickers (ADR-28): shown only when sound is on. Each
         // binds to the ViewModel bridge, which previews the choice on selection.
         if vm.soundEnabled {
-            Picker("🟡 Permission", selection: Binding(
-                get: { vm.permissionSound },
-                set: { vm.permissionSound = $0 }
-            )) {
-                ForEach(AlertSound.allCases, id: \.self) { sound in
-                    Text(sound.displayName).tag(sound)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 2)
-
-            Picker("🟢 Input", selection: Binding(
-                get: { vm.inputSound },
-                set: { vm.inputSound = $0 }
-            )) {
-                ForEach(AlertSound.allCases, id: \.self) { sound in
-                    Text(sound.displayName).tag(sound)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 2)
+            soundPicker("🟡 Permission", selection: $vm.permissionSound)
+            soundPicker("🟢 Input", selection: $vm.inputSound)
         }
 
         // One-way Enable Launch at Login (ADR-26/INV-15): shown only while off;
@@ -290,6 +271,16 @@ struct MenuContent: View {
         .buttonStyle(.plain)
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
+    }
+
+    private func soundPicker(_ title: String, selection: Binding<AlertSound>) -> some View {
+        Picker(title, selection: selection) {
+            ForEach(AlertSound.allCases, id: \.self) { sound in
+                Text(sound.displayName).tag(sound)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 2)
     }
 
     private func menuButton(_ title: String, action: @escaping () -> Void) -> some View {
