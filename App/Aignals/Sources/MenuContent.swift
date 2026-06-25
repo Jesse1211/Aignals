@@ -252,6 +252,31 @@ struct MenuContent: View {
         if vm.soundEnabled {
             soundPicker("🟡 Permission", selection: $vm.permissionSound)
             soundPicker("🟢 Input", selection: $vm.inputSound)
+
+            // Sounds only fire on real state transitions, which require the
+            // Claude Code hooks. With no hooks installed the picks never play, so
+            // warn (and offer to install) — preview-on-select still works because
+            // it calls play() directly. Hidden once hooks are present.
+            if !vm.claudeHooksInstalled {
+                Button {
+                    runInstall(vm.installClaudeHooks,
+                               successTitle: "Hooks installed",
+                               successInfo: "Aignals will now light up when Claude Code is working.",
+                               failureTitle: "Couldn't install hooks") { "Edit ~/.claude/settings.json manually. Error: \($0)" }
+                } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text("⚠︎")
+                        Text("Hooks not installed — sounds won't fire. Install…")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 2)
+            }
         }
 
         // One-way Enable Launch at Login (ADR-26/INV-15): shown only while off;
