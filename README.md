@@ -38,11 +38,15 @@ Clicking the icon opens a panel with **one row per session**, sorted **pinned-fi
 | **🔇 Mute button** | Silence sound alerts for just this session; click again to unmute |
 | **✕ Remove** | Shown only on **gray (disconnected)** rows — removes the dead session and its saved preferences |
 
-Rows can be **drag-reordered**; the order persists. Below the sessions, a **Settings** button expands the rest: Install Claude Code Hooks, Install aignals-hook CLI, Open `~/.aignals`, About, a global sound toggle, and Enable Launch at Login. **Quit** stays outside the fold.
+Rows can be **drag-reordered**; the order persists. Below the sessions, a **Settings** button expands the rest: a theme picker, Install Claude Code Hooks, Install aignals-hook CLI, Open `~/.aignals`, About, the sound controls, and Enable Launch at Login. **Quit** stays outside the fold.
 
 ## Sound alerts
 
-When a session transitions into a state that needs you — 🟡 (waiting for permission) or 🟢 (waiting for input) — Aignals plays a short macOS system sound (a different sound for each, so you can tell which kind of attention is needed). Transitions into 🔴 (working) are silent. Sounds are throttled (at most once per session every few seconds, and never on app launch). Mute a single session with its 🔇 button, or turn all sound off with the global toggle under **Settings**.
+When a session transitions into a state that needs you — 🟡 (waiting for permission) or 🟢 (waiting for input) — Aignals plays a short macOS system sound so you can tell which kind of attention is needed. Transitions into 🔴 (working) are silent.
+
+Under **Settings → Play sounds**, each of the two states has its own sound picker: choose any stock macOS system sound (Ping, Glass, Funk, Tink, Pop, Hero, Submarine, Blow) or **None** to silence that state. Selecting a sound previews it immediately. The defaults are Ping for 🟡 and Glass for 🟢. Sounds are throttled (at most once per session every few seconds, and never on app launch). Mute a single session with its 🔇 button, or turn all sound off with the **Play sounds** toggle.
+
+> Sounds fire on real session transitions, which need the Claude Code hooks installed. If they aren't, the sound pickers show a one-line reminder with an install shortcut (previewing a sound still works without the hooks).
 
 ## How it works
 
