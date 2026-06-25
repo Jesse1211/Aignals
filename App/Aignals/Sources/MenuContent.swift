@@ -29,22 +29,78 @@ struct MenuContent: View {
     /// "Settings" button + Quit.
     @State private var settingsExpanded = false
 
+    /// Whether the side pop-out theme picker is showing (ADR-0809).
+    @State private var themePopoverShown = false
+
+    /// Concrete style tokens for the currently-selected theme (ADR-0808).
+    private var style: ThemeStyle { ThemeStyle.tokens(for: vm.theme) }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            header
+            Divider().background(style.hairline)
+
             if vm.store.hasError {
                 errorBanner
-                Divider()
+                Divider().background(style.hairline)
             }
 
             sessionList
 
-            Divider()
+            Divider().background(style.hairline)
 
             actions
         }
         .frame(width: 320)
+        .environment(\.themeStyle, style)
+        .foregroundStyle(style.textPrimary)
+        .background(panelBackground)
         .onReceive(timer) { tick = $0 }
         .onAppear { FirstLaunchPrompt.maybeShow(viewModel: vm) }
+    }
+
+    /// Glass themes blur the desktop via NSVisualEffectView; fixed themes use a
+    /// flat fill.
+    @ViewBuilder
+    private var panelBackground: some View {
+        if let material = style.panelMaterial {
+            VisualEffectBackground(material: material, appearance: style.panelAppearance)
+        } else {
+            style.panelColor
+        }
+    }
+
+    // MARK: - Brand header
+
+    private var header: some View {
+        HStack(spacing: 8) {
+            RoundedRectangle(cornerRadius: 5)
+                .fill(AngularGradient(colors: [.red, .yellow, .green, .red], center: .center))
+                .frame(width: 18, height: 18)
+            Text("AIGNALS").font(.system(size: 12, weight: .bold)).kerning(0.5)
+            Spacer()
+            countChips
+        }
+        .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 8)
+    }
+
+    private var countChips: some View {
+        let c = vm.store.statusCounts
+        return HStack(spacing: 6) {
+            chip(.red, c.working)
+            chip(.yellow, c.waitingPermission)
+            chip(.green, c.waitingInput)
+        }
+    }
+
+    private func chip(_ color: Color, _ n: Int) -> some View {
+        HStack(spacing: 3) {
+            Circle().fill(color).frame(width: 6, height: 6)
+                .shadow(color: style.dotGlow ? color : .clear, radius: 3)
+            Text("\(n)").font(.system(size: 11, weight: .bold))
+        }
+        .padding(.horizontal, 7).padding(.vertical, 2)
+        .background(Capsule().fill(Color.primary.opacity(0.10)))
     }
 
     // MARK: - Sections
@@ -53,27 +109,44 @@ struct MenuContent: View {
         VStack(alignment: .leading, spacing: 4) {
             Label("Cannot read ~/.aignals", systemImage: "exclamationmark.triangle")
                 .font(.callout)
+                .foregroundStyle(.red)
             Button("Reveal in Finder") { vm.revealAignalsHome() }
                 .buttonStyle(.link)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: style.rowCorner)
+                .fill(Color.red.opacity(0.12))
+        )
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
     }
 
     @ViewBuilder
     private var sessionList: some View {
         let sessions = vm.sortedSessions
         if sessions.isEmpty {
-            Text("No active sessions")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+            VStack(spacing: 8) {
+                Image(systemName: "moon.zzz")
+                    .font(.system(size: 28))
+                    .foregroundStyle(style.textSecondary)
+                Text("No active sessions")
+                    .font(.callout)
+                    .foregroundStyle(style.textPrimary)
+                Text("Start Claude Code to see it light up.")
+                    .font(.caption)
+                    .foregroundStyle(style.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 18)
         } else {
             Text("Active Sessions")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(style.textSecondary)
                 .padding(.horizontal, 12)
                 .padding(.top, 8)
                 .padding(.bottom, 2)
@@ -125,6 +198,24 @@ struct MenuContent: View {
     /// Launch at Login button.
     @ViewBuilder
     private var settingsItems: some View {
+        // Side pop-out theme picker (ADR-0809). `arrowEdge: .trailing` is a hint;
+        // SwiftUI flips it when space is tight, satisfying the "auto side"
+        // decision. The popover stays open until dismissed.
+        Button { themePopoverShown.toggle() } label: {
+            HStack {
+                Text("🎨 Theme")
+                Spacer()
+                Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 12).padding(.vertical, 4)
+        .popover(isPresented: $themePopoverShown, arrowEdge: .trailing) {
+            ThemePicker(vm: vm)
+        }
+
         if !vm.claudeHooksInstalled {
             menuButton("Install Claude Code Hooks…") {
                 runInstall(vm.installClaudeHooks,
@@ -251,6 +342,9 @@ private struct SessionRow: View {
     let session: Session
     let tick: Date
 
+    /// The current theme's style tokens, injected by `MenuContent` (ADR-0808).
+    @Environment(\.themeStyle) private var style
+
     /// Local editing buffer for the name field. Seeded from the effective
     /// display name and committed to `setName` on submit / focus loss.
     @State private var draftName: String = ""
@@ -261,21 +355,29 @@ private struct SessionRow: View {
             Circle()
                 .fill(Self.dotColor(for: session.state))
                 .frame(width: 9, height: 9)
+                .shadow(color: style.dotGlow ? Self.dotColor(for: session.state) : .clear, radius: 4)
                 .padding(.top, 4)
 
             VStack(alignment: .leading, spacing: 2) {
-                TextField("Name", text: $draftName)
-                    .textFieldStyle(.plain)
-                    .font(.body)
-                    .focused($nameFocused)
-                    .onSubmit { commitName() }
-                    .onChange(of: nameFocused) { _, focused in
-                        if !focused { commitName() }
+                HStack(spacing: 4) {
+                    if let prefix = style.rowPrefix {
+                        Text(prefix)
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundStyle(style.textSecondary)
                     }
+                    TextField("Name", text: $draftName)
+                        .textFieldStyle(.plain)
+                        .font(style.usesMonospaced ? .system(.body, design: .monospaced) : .body)
+                        .focused($nameFocused)
+                        .onSubmit { commitName() }
+                        .onChange(of: nameFocused) { _, focused in
+                            if !focused { commitName() }
+                        }
+                }
 
                 Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(style.usesMonospaced ? .system(.caption, design: .monospaced) : .caption)
+                    .foregroundStyle(style.textSecondary)
                     .lineLimit(1)
             }
 
@@ -313,6 +415,12 @@ private struct SessionRow: View {
                 .help("Remove disconnected session")
             }
         }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
+        .background(
+            RoundedRectangle(cornerRadius: style.rowCorner)
+                .fill(style.rowTint(session.state)?.opacity(0.14) ?? .clear)
+        )
         .padding(.vertical, 2)
         .onAppear { draftName = vm.displayName(for: session) }
         .onChange(of: vm.displayName(for: session)) { _, newValue in
