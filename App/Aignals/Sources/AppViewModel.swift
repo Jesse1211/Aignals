@@ -489,4 +489,30 @@ extension AppViewModel {
         get { config.theme }
         set { var c = config; c.theme = newValue; config = c }
     }
+
+    /// Alert sound for 🟡 waiting-permission (ADR-28/31). Reads/writes
+    /// `config.permissionSound` through the config setter (bumps `configVersion`);
+    /// previews the new sound once so the choice is audible.
+    var permissionSound: AlertSound {
+        get { config.permissionSound }
+        set {
+            var c = config; c.permissionSound = newValue; config = c
+            Self.preview(newValue)
+        }
+    }
+
+    /// Alert sound for 🟢 waiting-input (ADR-28/31). Same pattern as
+    /// `permissionSound`, backed by `config.inputSound`.
+    var inputSound: AlertSound {
+        get { config.inputSound }
+        set {
+            var c = config; c.inputSound = newValue; config = c
+            Self.preview(newValue)
+        }
+    }
+
+    /// Play `sound` once for selection feedback. `.none` is silent.
+    private static func preview(_ sound: AlertSound) {
+        if let name = sound.systemSoundName { play(name) }
+    }
 }
