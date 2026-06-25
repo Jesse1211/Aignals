@@ -480,4 +480,12 @@ extension AppViewModel {
         get { config.soundEnabled }
         set { var c = config; c.soundEnabled = newValue; config = c }
     }
+
+    /// Selected theme (ADR-0810). Reads/writes `AignalsConfig.theme` through the
+    /// existing config setter, which bumps `configVersion` so SwiftUI re-derives
+    /// the themed UI immediately.
+    var theme: Theme {
+        get { config.theme }
+        set { var c = config; c.theme = newValue; config = c }
+    }
 }
