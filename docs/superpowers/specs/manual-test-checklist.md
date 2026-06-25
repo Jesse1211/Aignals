@@ -25,3 +25,9 @@ Run before tagging a release. Each item must be verified on a fresh macOS 13+ ma
 ## Launch at Login (Phase 10)
 - [ ] Toggle in dropdown enables/disables `SMAppService` registration.
 - [ ] After enabling and rebooting, Aignals starts automatically.
+
+## Status sounds (v0.3.0)
+- [ ] Settings → "Play sounds" on shows the 🟡 Permission / 🟢 Input pickers; off hides them.
+- [ ] Selecting a sound in each picker previews it audibly; "None" is silent.
+- [ ] The selected sounds persist across relaunch (written to `~/.aignals/config.json`).
+- [ ] A real transition into 🟡 plays the selected Permission sound, into 🟢 the selected Input sound; 🔴 working and ⚫ disconnected stay silent.
