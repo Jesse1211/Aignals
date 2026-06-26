@@ -279,6 +279,43 @@ struct MenuContent: View {
             }
         }
 
+        // Feishu (飞书/Lark) notifications: independent of sounds. Fires on the same
+        // 🟡/🟢 transitions, POSTing to a user-configured custom-bot webhook.
+        Toggle("Feishu notifications", isOn: Binding(
+            get: { vm.feishuEnabled },
+            set: { vm.feishuEnabled = $0 }
+        ))
+        .toggleStyle(.checkbox)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+
+        if vm.feishuEnabled {
+            feishuField("Webhook URL", text: Binding(
+                get: { vm.feishuWebhookURL }, set: { vm.feishuWebhookURL = $0 }))
+            feishuField("Secret (optional)", text: Binding(
+                get: { vm.feishuSecret }, set: { vm.feishuSecret = $0 }))
+            feishuField("Keyword (optional)", text: Binding(
+                get: { vm.feishuKeyword }, set: { vm.feishuKeyword = $0 }))
+
+            Text("Secret: for signature-mode bots. Keyword: only if your bot uses keyword security.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 12)
+
+            menuButton("Send test message") { vm.sendFeishuTest() }
+
+            if let err = vm.lastFeishuError {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text("⚠︎")
+                    Text(err).frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .font(.caption)
+                .foregroundStyle(.red)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 2)
+            }
+        }
+
         // One-way Enable Launch at Login (ADR-26/INV-15): shown only while off;
         // tapping enables it and bumps the observable version so it hides now.
         if !vm.launchAtLogin {
@@ -306,6 +343,14 @@ struct MenuContent: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 2)
+    }
+
+    private func feishuField(_ title: String, text: Binding<String>) -> some View {
+        TextField(title, text: text)
+            .textFieldStyle(.roundedBorder)
+            .font(.caption)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 2)
     }
 
     private func menuButton(_ title: String, action: @escaping () -> Void) -> some View {
