@@ -57,6 +57,17 @@ fields to the body —
 where `timestamp` is the current Unix seconds (must be within 1 hour of Feishu's clock)
 and `sign = Base64( HMAC-SHA256( key = "<timestamp>\n<secret>", data = <empty bytes> ) )`.
 
+**Three optional bot security modes** (the user picks one when creating the bot):
+*custom keywords*, *IP whitelist*, or *signature*. We only build in support for
+**signature** (the `feishuSecret` field) because the others need no client code — BUT
+they constrain our message:
+- **Custom keywords:** Feishu drops any message not containing one of the configured
+  keywords. Our messages always begin with the literal `Aignals`, so a user on keyword
+  mode just sets a keyword of `Aignals` and every message passes. This is documented in
+  the user-facing setup guide so a keyword-mode user isn't silently dropped.
+- **IP whitelist:** sends originate from the user's own machine IP; nothing we can set in
+  the app. Out of scope — the user manages it on Feishu's side.
+
 Sources:
 - https://open.feishu.cn/document/client-docs/bot-v3/add-custom-bot
 
@@ -149,10 +160,30 @@ A Feishu message fires only when ALL hold (parallel to the sound gate):
 to `lastAlertAt` and shared by both channels, so a single transition cannot double-fire
 across sound + Feishu, and rapid flapping is throttled per session for both.
 
-> Note: the throttle is shared, so if a session sounds then would Feishu within 3s of
-> the same transition, both still fire for that one transition (they're evaluated in the
-> same diff pass, same `now`). The throttle prevents a *second* transition's alerts
-> within the window — matching today's sound behavior.
+> Note: the throttle is shared, so if a session sounds AND Feishu-sends on the same
+> transition, both fire for that one transition (same diff pass, same `now`). The
+> throttle prevents a *second* transition's alerts within the window — matching today's
+> sound behavior.
+
+**Control-flow refactor (implementation-critical, easy to get wrong).** Today the throttle
+timestamp is written *inside* the sound branch — `lastSoundAt[id] = now` only runs after
+`guard soundOn` passes and a sound actually plays. Sharing the throttle means it must move
+*out* of any single channel. The per-session loop body must become:
+
+1. Compute the diff (known? changed? into 🟡/🟢? not muted?) — the **channel-independent**
+   gate. If it fails, `continue` without touching `lastAlertAt`.
+2. Decide per channel whether it *wants* to fire this transition:
+   `wantsSound = soundEnabled && sound(forState) != nil`,
+   `wantsFeishu = feishuEnabled && !feishuWebhookURL.isEmpty`.
+3. If neither wants to fire, `continue`.
+4. Apply the **shared** throttle once: if `lastAlertAt[id]` is within 3s, `continue`;
+   otherwise set `lastAlertAt[id] = now`.
+5. Then fire each wanting channel (`play(...)` and/or `FeishuNotifier.notify(...)`).
+
+This ordering is the whole reason the channels stay consistent: a session that is sound-off
+but Feishu-on must still reach the throttle/send step, which the *old* `guard soundOn else
+{ continue }` placement would have skipped. The implementation plan MUST restructure this
+loop rather than bolt a second `if` after the existing sound code.
 
 ## Failure handling & UI
 
@@ -166,9 +197,10 @@ private(set) var lastFeishuError: String?   // @Observable, set on @MainActor
 **Settings additions** (in the existing expandable Settings section of `MenuContent`):
 - A **"Feishu notifications"** toggle (`feishuEnabled`).
 - When enabled: a **webhook URL** text field and an optional **secret** field.
-- A **"Send test"** button → calls `FeishuClient.send` with a fixed sample text so the
-  user can verify URL/secret without waiting for a real transition; its result feeds
-  the same `lastFeishuError`.
+- A **"Send test"** button → calls `FeishuClient.send` with a fixed sample text
+  (`Aignals • test — notifications are working`, kept `Aignals`-prefixed so it also
+  passes keyword-mode bots) so the user can verify URL/secret without waiting for a real
+  transition; its result feeds the same `lastFeishuError`.
 - When `lastFeishuError != nil`: a one-line **red warning** under the toggle — same
   visual treatment as the existing "hooks not installed" reminder.
 
