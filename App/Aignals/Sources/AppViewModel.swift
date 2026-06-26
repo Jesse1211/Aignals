@@ -46,9 +46,9 @@ final class AppViewModel {
     /// (startup seed or adoption) and never plays a sound (ADR-22).
     private var lastKnownState: [String: SessionState] = [:]
 
-    /// Last wall-clock instant a sound played for a given session id, used to
-    /// throttle to at most one sound per `soundThrottle` seconds (ADR-22).
-    private var lastSoundAt: [String: Date] = [:]
+    /// Last wall-clock instant an alert (sound or Feishu) fired for a given session
+    /// id, used to throttle to at most one alert per `soundThrottle` seconds (ADR-22).
+    private var lastAlertAt: [String: Date] = [:]
 
     /// Minimum gap between two sounds for the SAME session (ADR-22).
     private let soundThrottle: TimeInterval = 3
@@ -86,7 +86,7 @@ final class AppViewModel {
         let stream = store.changes
         Task { @MainActor [weak self] in
             for await _ in stream {
-                self?.handleSessionSounds()
+                self?.handleSessionAlerts()
                 self?.pruneOrphanedOverrides()
             }
         }
@@ -281,7 +281,7 @@ extension AppViewModel {
     /// `lastKnownState` is updated for EVERY current session on every call so
     /// the next diff has a fresh baseline; ids no longer present fall out via
     /// the prune pass below.
-    private func handleSessionSounds() {
+    private func handleSessionAlerts() {
         let now = Date()
         let soundOn = config.soundEnabled
         var live = Set<String>()
@@ -292,24 +292,41 @@ extension AppViewModel {
             let previous = lastKnownState[id]
             lastKnownState[id] = session.state
 
-            // First observation (seed/adoption) or unchanged state: no sound.
+            // Channel-independent gate: first observation or unchanged state → nothing,
+            // and a per-session muted row sends neither channel.
             guard let previous, previous != session.state else { continue }
-            guard let sound = sound(forTransitionInto: session.state) else { continue }
-            guard soundOn else { continue }
             guard overrideStore.override(for: id)?.muted != true else { continue }
 
-            if let last = lastSoundAt[id], now.timeIntervalSince(last) < soundThrottle {
+            // Decide per channel whether it wants to fire THIS transition.
+            let soundName = sound(forTransitionInto: session.state)
+            let wantsSound = soundOn && soundName != nil
+            let wantsFeishu = config.feishuEnabled
+                && !config.feishuWebhookURL.isEmpty
+                && FeishuMessage.text(displayName: displayName(for: session),
+                                      state: session.state,
+                                      keyword: config.feishuKeyword) != nil
+            guard wantsSound || wantsFeishu else { continue }
+
+            // Shared per-session throttle: one stamp covers both channels.
+            if let last = lastAlertAt[id], now.timeIntervalSince(last) < soundThrottle {
                 continue
             }
-            lastSoundAt[id] = now
-            Self.play(sound)
+            lastAlertAt[id] = now
+
+            if wantsSound, let soundName { Self.play(soundName) }
+            if wantsFeishu,
+               let text = FeishuMessage.text(displayName: displayName(for: session),
+                                             state: session.state,
+                                             keyword: config.feishuKeyword) {
+                sendFeishu(text: text)
+            }
         }
 
         // Forget bookkeeping for sessions that have gone away so a future
         // session reusing the id (unlikely) starts fresh, and the maps don't
         // grow unbounded.
         lastKnownState = lastKnownState.filter { live.contains($0.key) }
-        lastSoundAt = lastSoundAt.filter { live.contains($0.key) }
+        lastAlertAt = lastAlertAt.filter { live.contains($0.key) }
     }
 
     /// The macOS system sound name for a transition INTO `state`, or `nil` for
