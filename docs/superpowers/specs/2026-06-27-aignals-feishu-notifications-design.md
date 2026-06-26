@@ -103,7 +103,7 @@ All notification logic lives in `AignalsCore` (pure/testable); the App target on
 the wiring and SwiftUI.
 
 **`FeishuMessage`** (`Sources/AignalsCore/FeishuMessage.swift`)
-- Pure function: `static func text(displayName: String, state: SessionState) -> String?`
+- Pure function: `static func text(displayName: String, state: SessionState, keyword: String = "") -> String?`
 - Returns `nil` for non-notifying states (working/disconnected) — mirrors
   `sound(forTransitionInto:)`.
 - Format: `Aignals • <displayName>: <emoji> <state phrase> — <action>`, e.g.
@@ -111,6 +111,12 @@ the wiring and SwiftUI.
   - 🟢 → `Aignals • my-project: 🟢 finished — your turn`
 - Takes `displayName` as a param so the view-model can pass `displayName(for:)`
   (honors renames).
+- **Keyword guarantee:** if `keyword` is non-empty and the built text does NOT already
+  contain it (case-sensitive, Feishu's match is literal-substring), append ` [<keyword>]`
+  so a keyword-mode bot accepts the message. Since every message already begins with the
+  literal `Aignals`, a keyword of `Aignals` is satisfied for free and nothing is
+  appended — the append only kicks in for a non-`Aignals` keyword. This keeps the
+  keyword-passing logic pure and unit-tested rather than implicit in the wording.
 
 **`FeishuClient`** (`Sources/AignalsCore/FeishuClient.swift`)
 - `func send(text: String, to webhookURL: String, secret: String) async -> Result<Void, FeishuError>`
@@ -134,16 +140,20 @@ view-model)
 
 ### Config
 
-Three new fields on `AignalsConfig`, all `decodeIfPresent` with defaults so existing
+Four new fields on `AignalsConfig`, all `decodeIfPresent` with defaults so existing
 `config.json` upgrades cleanly (identical pattern to `soundEnabled`/`theme`):
 
 ```swift
 public var feishuEnabled: Bool       // default false
 public var feishuWebhookURL: String  // default ""
 public var feishuSecret: String      // default "" (optional signing)
+public var feishuKeyword: String     // default "" (optional keyword-mode passphrase)
 ```
 
-Update `init`, `default`, `CodingKeys`, and the custom `init(from:)`.
+`feishuSecret` and `feishuKeyword` are independent optional security modes (a bot uses
+one of them, or neither) — both may be empty. Update `init`, `default`, `CodingKeys`,
+and the custom `init(from:)`. All three string fields are user-entered and persisted to
+`~/.aignals/config.json` via the existing `ConfigStore.save`.
 
 ### Gating (mirrors sound, INV parity)
 
@@ -196,11 +206,16 @@ private(set) var lastFeishuError: String?   // @Observable, set on @MainActor
 
 **Settings additions** (in the existing expandable Settings section of `MenuContent`):
 - A **"Feishu notifications"** toggle (`feishuEnabled`).
-- When enabled: a **webhook URL** text field and an optional **secret** field.
+- When enabled, three text fields (each bound to its config string, persisted on edit):
+  - **Webhook URL** (`feishuWebhookURL`) — required; the send is gated on it being non-empty.
+  - **Secret** (`feishuSecret`) — optional; only needed for signature-mode bots.
+  - **Keyword** (`feishuKeyword`) — optional; only needed for keyword-mode bots. A short
+    helper line clarifies "leave blank unless your bot uses keyword security".
 - A **"Send test"** button → calls `FeishuClient.send` with a fixed sample text
-  (`Aignals • test — notifications are working`, kept `Aignals`-prefixed so it also
-  passes keyword-mode bots) so the user can verify URL/secret without waiting for a real
-  transition; its result feeds the same `lastFeishuError`.
+  (`Aignals • test — notifications are working`, kept `Aignals`-prefixed) passed through
+  the same `FeishuMessage` keyword-append so it also passes keyword-mode bots; lets the
+  user verify URL/secret/keyword without waiting for a real transition. Its result feeds
+  the same `lastFeishuError`.
 - When `lastFeishuError != nil`: a one-line **red warning** under the toggle — same
   visual treatment as the existing "hooks not installed" reminder.
 
@@ -211,7 +226,9 @@ Send is fire-and-forget `Task`; no retries, no queue.
 Pure/core logic is unit-tested in `Tests/AignalsCoreTests`; no real network.
 
 - **`FeishuMessageTests`** — text for 🟡 and 🟢; `nil` for working/disconnected;
-  rename honored (displayName param); action suffix correct.
+  rename honored (displayName param); action suffix correct; **keyword logic**: empty
+  keyword appends nothing; keyword already present (e.g. `Aignals`) appends nothing;
+  a novel keyword is appended as ` [<keyword>]` and the result contains it.
 - **`FeishuClientTests`**
   - sign computation matches a known vector (fixed timestamp + secret →
     expected Base64), exercising the documented `"<ts>\n<secret>"` key + empty data;
