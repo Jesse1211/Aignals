@@ -32,6 +32,11 @@ final class AppViewModel {
     private let configStore: ConfigStore
     private let watcher: FSEventsWatcher
     private let sweeper: PIDSweeper
+    private let feishuClient = FeishuClient()
+
+    /// Last Feishu send outcome surfaced to Settings: `nil` = ok/never-sent, else a
+    /// short human string. Set on the main actor after each send completes.
+    private(set) var lastFeishuError: String?
 
     // MARK: Sound playback bookkeeping (ADR-21/22/23/24)
 
@@ -514,5 +519,71 @@ extension AppViewModel {
     /// Play `sound` once for selection feedback. `.none` is silent.
     private static func preview(_ sound: AlertSound) {
         if let name = sound.systemSoundName { play(name) }
+    }
+
+    /// Feishu master toggle, backed by `config.feishuEnabled` (persisted).
+    var feishuEnabled: Bool {
+        get { config.feishuEnabled }
+        set { var c = config; c.feishuEnabled = newValue; config = c }
+    }
+
+    /// Feishu webhook URL (persisted). Send is gated on this being non-empty.
+    var feishuWebhookURL: String {
+        get { config.feishuWebhookURL }
+        set { var c = config; c.feishuWebhookURL = newValue; config = c }
+    }
+
+    /// Optional signing secret (persisted).
+    var feishuSecret: String {
+        get { config.feishuSecret }
+        set { var c = config; c.feishuSecret = newValue; config = c }
+    }
+
+    /// Optional keyword for keyword-mode bots (persisted).
+    var feishuKeyword: String {
+        get { config.feishuKeyword }
+        set { var c = config; c.feishuKeyword = newValue; config = c }
+    }
+}
+
+// MARK: - Feishu notifications (send + test)
+
+extension AppViewModel {
+    /// Fire-and-forget POST of `text` to the configured webhook. Best-effort: on
+    /// completion sets `lastFeishuError` (nil on success) so Settings can warn.
+    /// Caller is responsible for all gating; this just sends.
+    func sendFeishu(text: String) {
+        let url = config.feishuWebhookURL
+        let secret = config.feishuSecret
+        guard !url.isEmpty else { return }
+        let ts = Int(Date().timeIntervalSince1970)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let result = await self.feishuClient.send(text: text, webhookURL: url, secret: secret, timestamp: ts)
+            switch result {
+            case .success:
+                self.lastFeishuError = nil
+            case .failure(let err):
+                self.lastFeishuError = Self.describe(err)
+            }
+        }
+    }
+
+    /// Send the fixed test message (run through the keyword-append so keyword-mode
+    /// bots accept it), invoked by the Settings "Send test" button.
+    func sendFeishuTest() {
+        let base = "Aignals • test — notifications are working"
+        let kw = config.feishuKeyword.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = (kw.isEmpty || base.contains(kw)) ? base : base + " [\(kw)]"
+        sendFeishu(text: text)
+    }
+
+    /// Map a `FeishuError` to a short UI string.
+    private static func describe(_ err: FeishuError) -> String {
+        switch err {
+        case .transport(let m): return "Send failed: \(m)"
+        case .http(let s):      return "Send failed: HTTP \(s)"
+        case .feishu(let c, let m): return "Feishu rejected: \(m) (\(c))"
+        }
     }
 }
