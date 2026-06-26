@@ -48,6 +48,20 @@ Under **Settings → Play sounds**, each of the two states has its own sound pic
 
 > Sounds fire on real session transitions, which need the Claude Code hooks installed. If they aren't, the sound pickers show a one-line reminder with an install shortcut (previewing a sound still works without the hooks).
 
+## Feishu notifications
+
+Aignals can also push a message to **Feishu (飞书/Lark)** on the same 🟡/🟢
+transitions, independent of sound. To set it up:
+
+1. In a Feishu group: **More (···) → Settings → Group Bots → Add Bot → Custom Bot**. Name it (e.g. "Aignals") and add it.
+2. Copy the generated **webhook URL** (`https://open.feishu.cn/open-apis/bot/v2/hook/…`; Lark international uses `open.larksuite.com`).
+3. (Optional) Under the bot's **Security Settings**, pick one:
+   - **Signature** — copy the **secret** into Aignals' *Secret* field (most secure).
+   - **Custom keywords** — set a keyword and enter the SAME word in Aignals' *Keyword* field. Tip: use `Aignals` (every message already starts with it).
+4. In Aignals: **Settings → Feishu notifications** → paste the webhook URL (and secret/keyword if used) → **Send test message** to confirm.
+
+Sends are best-effort; if one fails, Settings shows a one-line reason under the toggle.
+
 ## How it works
 
 Claude Code fires lifecycle hooks at key moments. Each hook runs the bundled `aignals-hook` shell script, which atomically writes/updates/removes a per-session JSON file under `~/.aignals/sessions/<session_id>.json`. Aignals watches that directory with FSEvents and renders the lights. The file *is* the protocol — any tool that writes a conforming JSON file can drive the indicator, not just Claude Code.

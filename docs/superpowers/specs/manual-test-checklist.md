@@ -31,3 +31,13 @@ Run before tagging a release. Each item must be verified on a fresh macOS 13+ ma
 - [ ] Selecting a sound in each picker previews it audibly; "None" is silent.
 - [ ] The selected sounds persist across relaunch (written to `~/.aignals/config.json`).
 - [ ] A real transition into 🟡 plays the selected Permission sound, into 🟢 the selected Input sound; 🔴 working and ⚫ disconnected stay silent.
+
+## Feishu notifications
+- [ ] Settings shows "Feishu notifications" toggle; fields appear only when on.
+- [ ] Webhook URL / Secret / Keyword persist across app relaunch (config.json).
+- [ ] "Send test message" with a valid webhook delivers a message to the group.
+- [ ] Invalid webhook → red error line appears under the toggle; valid send clears it.
+- [ ] Real 🟢 transition delivers a message naming the session; rename is honored.
+- [ ] Sound OFF + Feishu ON: a transition still sends Feishu (throttle moved out of sound branch).
+- [ ] Per-session 🔇 mute suppresses BOTH sound and Feishu for that session.
+- [ ] Keyword-mode bot: with Keyword set, messages are accepted (not dropped by Feishu).
