@@ -15,14 +15,28 @@ public struct AignalsConfig: Equatable, Codable, Sendable {
     /// Alert sound for 🟢 waiting-input transitions (ADR-28/31). Decodes to
     /// `.glass` when absent so existing config.json keeps the old default.
     public var inputSound: AlertSound
+    /// Feishu (飞书/Lark) custom-bot notification toggle. Decodes to `false` when
+    /// absent so existing config.json files keep notifications off after upgrade.
+    public var feishuEnabled: Bool
+    /// Feishu custom-bot webhook URL (https://open.feishu.cn/open-apis/bot/v2/hook/…).
+    public var feishuWebhookURL: String
+    /// Optional signing secret for signature-mode bots (HMAC-SHA256). Empty = unsigned.
+    public var feishuSecret: String
+    /// Optional keyword for keyword-mode bots; appended to messages that don't already
+    /// contain it so Feishu accepts them. Empty = no keyword constraint.
+    public var feishuKeyword: String
 
-    public init(launchAtLogin: Bool, dismissedInstallPrompt: Bool, soundEnabled: Bool = true, theme: Theme = .glassDark, permissionSound: AlertSound = .ping, inputSound: AlertSound = .glass) {
+    public init(launchAtLogin: Bool, dismissedInstallPrompt: Bool, soundEnabled: Bool = true, theme: Theme = .glassDark, permissionSound: AlertSound = .ping, inputSound: AlertSound = .glass, feishuEnabled: Bool = false, feishuWebhookURL: String = "", feishuSecret: String = "", feishuKeyword: String = "") {
         self.launchAtLogin = launchAtLogin
         self.dismissedInstallPrompt = dismissedInstallPrompt
         self.soundEnabled = soundEnabled
         self.theme = theme
         self.permissionSound = permissionSound
         self.inputSound = inputSound
+        self.feishuEnabled = feishuEnabled
+        self.feishuWebhookURL = feishuWebhookURL
+        self.feishuSecret = feishuSecret
+        self.feishuKeyword = feishuKeyword
     }
 
     public static let `default` = AignalsConfig(launchAtLogin: false, dismissedInstallPrompt: false, soundEnabled: true, theme: .glassDark, permissionSound: .ping, inputSound: .glass)
@@ -34,6 +48,10 @@ public struct AignalsConfig: Equatable, Codable, Sendable {
         case theme
         case permissionSound
         case inputSound
+        case feishuEnabled
+        case feishuWebhookURL
+        case feishuSecret
+        case feishuKeyword
     }
 
     public init(from decoder: Decoder) throws {
@@ -44,6 +62,10 @@ public struct AignalsConfig: Equatable, Codable, Sendable {
         self.theme = try container.decodeIfPresent(Theme.self, forKey: .theme) ?? .glassDark
         self.permissionSound = try container.decodeIfPresent(AlertSound.self, forKey: .permissionSound) ?? .ping
         self.inputSound = try container.decodeIfPresent(AlertSound.self, forKey: .inputSound) ?? .glass
+        self.feishuEnabled = try container.decodeIfPresent(Bool.self, forKey: .feishuEnabled) ?? false
+        self.feishuWebhookURL = try container.decodeIfPresent(String.self, forKey: .feishuWebhookURL) ?? ""
+        self.feishuSecret = try container.decodeIfPresent(String.self, forKey: .feishuSecret) ?? ""
+        self.feishuKeyword = try container.decodeIfPresent(String.self, forKey: .feishuKeyword) ?? ""
     }
 }
 
