@@ -260,23 +260,26 @@ extension AppViewModel {
     }
 }
 
-// MARK: - Sound playback (ADR-21/22/23/24, INV-13)
+// MARK: - Session alerts: sound + Feishu (ADR-21/22/23/24, INV-13)
 
 extension AppViewModel {
-    /// Diff the current sessions against `lastKnownState` and play an alert
-    /// sound for any session that just TRANSITIONED INTO a waiting state
-    /// (waiting_permission → "Ping", waiting_input → "Glass"; ADR-23).
+    /// Diff the current sessions against `lastKnownState` and fire alerts for any
+    /// session that just TRANSITIONED INTO a waiting state. Two independent
+    /// channels ride this one diff pass: a system sound (waiting_permission →
+    /// "Ping", waiting_input → "Glass"; ADR-23) and a Feishu webhook message.
     ///
-    /// Gating (ADR-21/22/24, INV-13): a sound fires only when
+    /// Channel-independent gating (ADR-21/22/24, INV-13): a transition is a
+    /// candidate only when
     ///   - the new state is `.waitingPermission` or `.waitingInput` (never
     ///     `.working`/`.disconnected`); AND
     ///   - the session was already KNOWN (present in `lastKnownState`) — a
     ///     first observation (startup seed or hook adoption) is silent; AND
     ///   - the state actually CHANGED from the prior value; AND
-    ///   - `config.soundEnabled`; AND
-    ///   - the session is not per-row muted; AND
-    ///   - at least `soundThrottle` seconds elapsed since this session last
-    ///     played (per-session throttle).
+    ///   - the session is not per-row muted (mute silences BOTH channels).
+    /// Each channel then opts in: sound when `config.soundEnabled`, Feishu when
+    /// `config.feishuEnabled` and a webhook URL is set. A SHARED per-session
+    /// throttle (`lastAlertAt`, at least `soundThrottle` seconds) is stamped once
+    /// for whichever channel(s) fire, so a single transition never double-fires.
     ///
     /// `lastKnownState` is updated for EVERY current session on every call so
     /// the next diff has a fresh baseline; ids no longer present fall out via
