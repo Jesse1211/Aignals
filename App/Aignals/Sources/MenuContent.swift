@@ -73,14 +73,21 @@ struct MenuContent: View {
     // MARK: - Brand header
 
     private var header: some View {
-        HStack(spacing: 8) {
-            RoundedRectangle(cornerRadius: 5)
-                .fill(AngularGradient(colors: [.red, .yellow, .green, .red], center: .center))
-                .frame(width: 18, height: 18)
-            Text("AIGNALS").font(.system(size: 12, weight: .bold)).kerning(0.5)
-            Spacer()
-            countChips
+        Button { openWindow(id: "about") } label: {
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(AngularGradient(colors: [.red, .yellow, .green, .red], center: .center))
+                    .frame(width: 18, height: 18)
+                Text("AIGNALS").font(.system(size: 12, weight: .bold)).kerning(0.5)
+                Image(systemName: "info.circle")
+                    .font(.system(size: 11))
+                    .foregroundStyle(style.textSecondary)
+                Spacer()
+                countChips
+            }
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 8)
     }
 
@@ -235,7 +242,6 @@ struct MenuContent: View {
         }
 
         menuButton("Open ~/.aignals") { vm.revealAignalsHome() }
-        menuButton("About Aignals…") { openWindow(id: "about") }
 
         // Global sound toggle (ADR-20): bound to config.soundEnabled through the
         // existing config setter.
