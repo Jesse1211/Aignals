@@ -45,6 +45,12 @@ final class AppViewModel {
     var feishuSecretDraft: String = ""
     var feishuKeywordDraft: String = ""
 
+    /// Which Settings page the standalone window should show when next opened.
+    /// `MenuContent`'s "Settings…" sets this to `.general`; the brand header sets
+    /// it to `.about`. `SettingsView` syncs its selection from this on appear and
+    /// on change (so it works whether the window was closed or already open).
+    var settingsLandingSection: SettingsSection = .general
+
     // MARK: Sound playback bookkeeping (ADR-21/22/23/24)
 
     /// Last-known state per session id, so a change can be classified as a
