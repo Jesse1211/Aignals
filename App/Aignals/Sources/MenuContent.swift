@@ -24,14 +24,6 @@ struct MenuContent: View {
     @State private var tick = Date()
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
-    /// Whether the "Settings" fold is expanded (ADR-27/INV-16). Collapsed by
-    /// default so the always-visible menu is just the session list + the
-    /// "Settings" button + Quit.
-    @State private var settingsExpanded = false
-
-    /// Whether the side pop-out theme picker is showing (ADR-0809).
-    @State private var themePopoverShown = false
-
     /// Concrete style tokens for the currently-selected theme (ADR-0808).
     private var style: ThemeStyle { ThemeStyle.tokens(for: vm.theme) }
 
@@ -73,14 +65,24 @@ struct MenuContent: View {
     // MARK: - Brand header
 
     private var header: some View {
-        HStack(spacing: 8) {
-            RoundedRectangle(cornerRadius: 5)
-                .fill(AngularGradient(colors: [.red, .yellow, .green, .red], center: .center))
-                .frame(width: 18, height: 18)
-            Text("AIGNALS").font(.system(size: 12, weight: .bold)).kerning(0.5)
-            Spacer()
-            countChips
+        Button {
+            vm.settingsLandingSection = .about
+            openWindow(id: "settings")
+        } label: {
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(AngularGradient(colors: [.red, .yellow, .green, .red], center: .center))
+                    .frame(width: 18, height: 18)
+                Text("AIGNALS").font(.system(size: 12, weight: .bold)).kerning(0.5)
+                Image(systemName: "info.circle")
+                    .font(.system(size: 11))
+                    .foregroundStyle(style.textSecondary)
+                Spacer()
+                countChips
+            }
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 8)
     }
 
@@ -172,208 +174,45 @@ struct MenuContent: View {
     @ViewBuilder
     private var actions: some View {
         VStack(alignment: .leading, spacing: 2) {
-            // ADR-27/INV-16: the config-class items collapse behind a single
-            // "Settings" disclosure. Always-visible = session list + this
-            // button + Quit.
-            menuButton(settingsExpanded ? "Settings ▾" : "Settings ▸") {
-                settingsExpanded.toggle()
+            menuButton("⚙", "Settings…") {
+                vm.settingsLandingSection = .general
+                openWindow(id: "settings")
             }
-
-            if settingsExpanded {
-                settingsItems
-                    .padding(.leading, 8)
-            }
-
-            Divider()
-                .padding(.vertical, 2)
-
-            menuButton("Quit Aignals") { NSApplication.shared.terminate(nil) }
+            menuButton("⏻", "Quit Aignals") { NSApplication.shared.terminate(nil) }
                 .keyboardShortcut("q")
         }
         .padding(.vertical, 6)
     }
 
-    /// The folded config-class items (ADR-27): install hooks/CLI, Open
-    /// ~/.aignals, About, the global sound toggle, and the one-way Enable
-    /// Launch at Login button.
-    @ViewBuilder
-    private var settingsItems: some View {
-        // Side pop-out theme picker (ADR-0809). `arrowEdge: .trailing` is a hint;
-        // SwiftUI flips it when space is tight, satisfying the "auto side"
-        // decision. The popover stays open until dismissed.
-        Button { themePopoverShown.toggle() } label: {
-            HStack {
-                Text("🎨 Theme")
-                Spacer()
-                Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.secondary)
+    private func menuButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 13))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+    }
+
+    /// A settings row with a leading icon (emoji), aligned to an 18pt column so
+    /// titles line up. Coexists with the icon-less `menuButton(_:action:)`.
+    private func menuButton(_ icon: String, _ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 9) {
+                Text(icon).frame(width: 18, alignment: .center)
+                Text(title).font(.system(size: 13))
+                Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 12).padding(.vertical, 4)
-        .popover(isPresented: $themePopoverShown, arrowEdge: .trailing) {
-            ThemePicker(vm: vm)
-        }
-
-        if !vm.claudeHooksInstalled {
-            menuButton("Install Claude Code Hooks…") {
-                runInstall(vm.installClaudeHooks,
-                           successTitle: "Hooks installed",
-                           successInfo: "Aignals will now light up when Claude Code is working.",
-                           failureTitle: "Couldn't install hooks") { "Edit ~/.claude/settings.json manually. Error: \($0)" }
-            }
-        }
-
-        if !vm.hookIsLinked {
-            menuButton("Install aignals-hook CLI…") {
-                runInstall(vm.linkHookCLI,
-                           successTitle: "Linked",
-                           successInfo: "Symlinked aignals-hook into ~/.local/bin. If that's not on your PATH, add: export PATH=\"$HOME/.local/bin:$PATH\"",
-                           failureTitle: "Couldn't link CLI") { $0.localizedDescription }
-            }
-        }
-
-        menuButton("Open ~/.aignals") { vm.revealAignalsHome() }
-        menuButton("About Aignals…") { openWindow(id: "about") }
-
-        // Global sound toggle (ADR-20): bound to config.soundEnabled through the
-        // existing config setter.
-        Toggle("Play sounds", isOn: Binding(
-            get: { vm.soundEnabled },
-            set: { vm.soundEnabled = $0 }
-        ))
-        .toggleStyle(.checkbox)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 4)
-
-        // Per-state sound pickers (ADR-28): shown only when sound is on. Each
-        // binds to the ViewModel bridge, which previews the choice on selection.
-        if vm.soundEnabled {
-            soundPicker("🟡 Permission", selection: $vm.permissionSound)
-            soundPicker("🟢 Input", selection: $vm.inputSound)
-
-            // Sounds only fire on real state transitions, which require the
-            // Claude Code hooks. With no hooks installed the picks never play, so
-            // warn (and offer to install) — preview-on-select still works because
-            // it calls play() directly. Hidden once hooks are present.
-            if !vm.claudeHooksInstalled {
-                Button {
-                    runInstall(vm.installClaudeHooks,
-                               successTitle: "Hooks installed",
-                               successInfo: "Aignals will now light up when Claude Code is working.",
-                               failureTitle: "Couldn't install hooks") { "Edit ~/.claude/settings.json manually. Error: \($0)" }
-                } label: {
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text("⚠︎")
-                        Text("Hooks not installed — sounds won't fire. Install…")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 2)
-            }
-        }
-
-        // One-way Enable Launch at Login (ADR-26/INV-15): shown only while off;
-        // tapping enables it and bumps the observable version so it hides now.
-        if !vm.launchAtLogin {
-            menuButton("Enable Launch at Login") { vm.enableLaunchAtLogin() }
-        }
-
-        // DESTRUCTIVE: full uninstall. Placed last in the Settings fold and
-        // styled red. Confirm-then-act flow lives in `runUninstall`.
-        Button(action: runUninstall) {
-            Text("Uninstall Aignals…")
-                .foregroundStyle(.red)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
     }
 
-    private func soundPicker(_ title: String, selection: Binding<AlertSound>) -> some View {
-        Picker(title, selection: selection) {
-            ForEach(AlertSound.allCases, id: \.self) { sound in
-                Text(sound.displayName).tag(sound)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 2)
-    }
-
-    private func menuButton(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 4)
-    }
-
-    /// Runs an install action, showing a success alert on completion or a
-    /// failure alert built from the thrown error. The two install buttons differ
-    /// only in their action and message text, so this factors out the shared
-    /// do/try/catch → alert flow.
-    private func runInstall(_ action: () throws -> Void,
-                            successTitle: String,
-                            successInfo: String,
-                            failureTitle: String,
-                            failureInfo: (Error) -> String) {
-        do {
-            try action()
-            Self.alert(successTitle, informative: successInfo)
-        } catch {
-            Self.alert(failureTitle, informative: failureInfo(error))
-        }
-    }
-
-    /// The destructive uninstall flow: a confirmation alert first, and only if
-    /// the user explicitly confirms do we call `vm.uninstall()`. On success we
-    /// show a final "drag to Trash" alert and quit; on error we show the error
-    /// and do NOT quit (so the user can fix e.g. a malformed settings.json). This
-    /// is a dedicated handler (not `runInstall`) because it needs the two-alert
-    /// confirm-then-act shape.
-    private func runUninstall() {
-        let confirm = NSAlert()
-        confirm.messageText = "Uninstall Aignals?"
-        confirm.informativeText = "This removes its Claude Code hooks, the aignals-hook CLI link, and all data in ~/.aignals. Aignals.app itself you'll drag to the Trash."
-        confirm.alertStyle = .warning
-        confirm.addButton(withTitle: "Cancel")
-        let uninstallButton = confirm.addButton(withTitle: "Uninstall")
-        if #available(macOS 11.0, *) {
-            uninstallButton.hasDestructiveAction = true
-        }
-
-        // First button (.alertFirstButtonReturn) is Cancel; the second is Uninstall.
-        guard confirm.runModal() == .alertSecondButtonReturn else { return }
-
-        do {
-            try vm.uninstall()
-            Self.alert("Aignals uninstalled",
-                       informative: "Aignals uninstalled — drag Aignals.app to the Trash to finish.")
-            NSApplication.shared.terminate(nil)
-        } catch {
-            Self.alert("Couldn't uninstall",
-                       informative: "Aignals was not fully uninstalled. Error: \(error)")
-            // Do NOT quit — let the user resolve the problem and retry.
-        }
-    }
-
-    private static func alert(_ title: String, informative: String) {
-        let a = NSAlert()
-        a.messageText = title
-        a.informativeText = informative
-        a.runModal()
-    }
 }
 
 /// A single session row: state dot, editable name, "doing" subtitle, live

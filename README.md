@@ -38,7 +38,7 @@ Clicking the icon opens a panel with **one row per session**, sorted **pinned-fi
 | **🔇 Mute button** | Silence sound alerts for just this session; click again to unmute |
 | **✕ Remove** | Shown only on **gray (disconnected)** rows — removes the dead session and its saved preferences |
 
-Rows can be **drag-reordered**; the order persists. Below the sessions, a **Settings** button expands the rest: a theme picker, Install Claude Code Hooks, Install aignals-hook CLI, Open `~/.aignals`, About, the sound controls, and Enable Launch at Login. **Quit** stays outside the fold.
+Rows can be **drag-reordered**; the order persists. Below the sessions, a **Settings** button expands two groups — **General** (Install Claude Code Hooks, Install aignals-hook CLI, Open `~/.aignals/`, Launch at Login, Uninstall) and **Customization** (Theme, a **Sounds** card, and a **Feishu** card). Clicking the dropdown's **Aignals** header (marked with an ⓘ) opens the About window. **Quit** stays outside the fold.
 
 ## Sound alerts
 
@@ -47,6 +47,20 @@ When a session transitions into a state that needs you — 🟡 (waiting for per
 Under **Settings → Play sounds**, each of the two states has its own sound picker: choose any stock macOS system sound (Ping, Glass, Funk, Tink, Pop, Hero, Submarine, Blow) or **None** to silence that state. Selecting a sound previews it immediately. The defaults are Ping for 🟡 and Glass for 🟢. Sounds are throttled (at most once per session every few seconds, and never on app launch). Mute a single session with its 🔇 button, or turn all sound off with the **Play sounds** toggle.
 
 > Sounds fire on real session transitions, which need the Claude Code hooks installed. If they aren't, the sound pickers show a one-line reminder with an install shortcut (previewing a sound still works without the hooks).
+
+## Feishu notifications
+
+Aignals can also push a message to **Feishu (飞书/Lark)** on the same 🟡/🟢
+transitions, independent of sound. To set it up:
+
+1. In a Feishu group: **More (···) → Settings → Group Bots → Add Bot → Custom Bot**. Name it (e.g. "Aignals") and add it.
+2. Copy the generated **webhook URL** (`https://open.feishu.cn/open-apis/bot/v2/hook/…`; Lark international uses `open.larksuite.com`).
+3. (Optional) Under the bot's **Security Settings**, pick one:
+   - **Signature** — copy the **secret** into Aignals' *Secret* field (most secure).
+   - **Custom keywords** — set a keyword and enter the SAME word in Aignals' *Keyword* field. Tip: use `Aignals` (every message already starts with it).
+4. In Aignals: **Settings → Feishu notifications** → paste the webhook URL (and secret/keyword if used) → **Send test message** to confirm.
+
+Sends are best-effort; if one fails, Settings shows a one-line reason under the toggle.
 
 ## How it works
 

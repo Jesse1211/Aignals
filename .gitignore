@@ -8,3 +8,4 @@ xcuserdata/
 build/
 dist/
 App/Aignals/Aignals.xcodeproj
+.superpowers/

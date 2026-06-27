@@ -20,9 +20,10 @@ struct AignalsApp: App {
         }
         .menuBarExtraStyle(.window)
 
-        Window("About Aignals", id: "about") {
-            AboutView()
+        Window("Aignals Settings", id: "settings") {
+            SettingsView(vm: vm)
         }
         .windowResizability(.contentSize)
+        .defaultSize(width: 540, height: 440)
     }
 }

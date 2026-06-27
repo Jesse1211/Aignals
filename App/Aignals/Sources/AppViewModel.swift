@@ -32,6 +32,24 @@ final class AppViewModel {
     private let configStore: ConfigStore
     private let watcher: FSEventsWatcher
     private let sweeper: PIDSweeper
+    private let feishuClient = FeishuClient()
+
+    /// Last Feishu send outcome surfaced to Settings: `nil` = ok/never-sent, else a
+    /// short human string. Set on the main actor after each send completes.
+    private(set) var lastFeishuError: String?
+
+    /// Draft values for the Feishu card's text fields. Edited in place; committed
+    /// to config only on Save (so a half-typed webhook isn't persisted). Seeded
+    /// from persisted config at init and equal to config again after a Save.
+    var feishuURLDraft: String = ""
+    var feishuSecretDraft: String = ""
+    var feishuKeywordDraft: String = ""
+
+    /// Which Settings page the standalone window should show when next opened.
+    /// `MenuContent`'s "Settings…" sets this to `.general`; the brand header sets
+    /// it to `.about`. `SettingsView` syncs its selection from this on appear and
+    /// on change (so it works whether the window was closed or already open).
+    var settingsLandingSection: SettingsSection = .general
 
     // MARK: Sound playback bookkeeping (ADR-21/22/23/24)
 
@@ -41,9 +59,9 @@ final class AppViewModel {
     /// (startup seed or adoption) and never plays a sound (ADR-22).
     private var lastKnownState: [String: SessionState] = [:]
 
-    /// Last wall-clock instant a sound played for a given session id, used to
-    /// throttle to at most one sound per `soundThrottle` seconds (ADR-22).
-    private var lastSoundAt: [String: Date] = [:]
+    /// Last wall-clock instant an alert (sound or Feishu) fired for a given session
+    /// id, used to throttle to at most one alert per `soundThrottle` seconds (ADR-22).
+    private var lastAlertAt: [String: Date] = [:]
 
     /// Minimum gap between two sounds for the SAME session (ADR-22).
     private let soundThrottle: TimeInterval = 3
@@ -81,10 +99,12 @@ final class AppViewModel {
         let stream = store.changes
         Task { @MainActor [weak self] in
             for await _ in stream {
-                self?.handleSessionSounds()
+                self?.handleSessionAlerts()
                 self?.pruneOrphanedOverrides()
             }
         }
+
+        seedFeishuDrafts()
     }
 
     /// Load any session files already on disk so the UI reflects current state
@@ -255,28 +275,31 @@ extension AppViewModel {
     }
 }
 
-// MARK: - Sound playback (ADR-21/22/23/24, INV-13)
+// MARK: - Session alerts: sound + Feishu (ADR-21/22/23/24, INV-13)
 
 extension AppViewModel {
-    /// Diff the current sessions against `lastKnownState` and play an alert
-    /// sound for any session that just TRANSITIONED INTO a waiting state
-    /// (waiting_permission → "Ping", waiting_input → "Glass"; ADR-23).
+    /// Diff the current sessions against `lastKnownState` and fire alerts for any
+    /// session that just TRANSITIONED INTO a waiting state. Two independent
+    /// channels ride this one diff pass: a system sound (waiting_permission →
+    /// "Ping", waiting_input → "Glass"; ADR-23) and a Feishu webhook message.
     ///
-    /// Gating (ADR-21/22/24, INV-13): a sound fires only when
+    /// Channel-independent gating (ADR-21/22/24, INV-13): a transition is a
+    /// candidate only when
     ///   - the new state is `.waitingPermission` or `.waitingInput` (never
     ///     `.working`/`.disconnected`); AND
     ///   - the session was already KNOWN (present in `lastKnownState`) — a
     ///     first observation (startup seed or hook adoption) is silent; AND
     ///   - the state actually CHANGED from the prior value; AND
-    ///   - `config.soundEnabled`; AND
-    ///   - the session is not per-row muted; AND
-    ///   - at least `soundThrottle` seconds elapsed since this session last
-    ///     played (per-session throttle).
+    ///   - the session is not per-row muted (mute silences BOTH channels).
+    /// Each channel then opts in: sound when `config.soundEnabled`, Feishu when
+    /// `config.feishuEnabled` and a webhook URL is set. A SHARED per-session
+    /// throttle (`lastAlertAt`, at least `soundThrottle` seconds) is stamped once
+    /// for whichever channel(s) fire, so a single transition never double-fires.
     ///
     /// `lastKnownState` is updated for EVERY current session on every call so
     /// the next diff has a fresh baseline; ids no longer present fall out via
     /// the prune pass below.
-    private func handleSessionSounds() {
+    private func handleSessionAlerts() {
         let now = Date()
         let soundOn = config.soundEnabled
         var live = Set<String>()
@@ -287,24 +310,41 @@ extension AppViewModel {
             let previous = lastKnownState[id]
             lastKnownState[id] = session.state
 
-            // First observation (seed/adoption) or unchanged state: no sound.
+            // Channel-independent gate: first observation or unchanged state → nothing,
+            // and a per-session muted row sends neither channel.
             guard let previous, previous != session.state else { continue }
-            guard let sound = sound(forTransitionInto: session.state) else { continue }
-            guard soundOn else { continue }
             guard overrideStore.override(for: id)?.muted != true else { continue }
 
-            if let last = lastSoundAt[id], now.timeIntervalSince(last) < soundThrottle {
+            // Decide per channel whether it wants to fire THIS transition.
+            let soundName = sound(forTransitionInto: session.state)
+            let wantsSound = soundOn && soundName != nil
+            let wantsFeishu = config.feishuEnabled
+                && !config.feishuWebhookURL.isEmpty
+                && FeishuMessage.text(displayName: displayName(for: session),
+                                      state: session.state,
+                                      keyword: config.feishuKeyword) != nil
+            guard wantsSound || wantsFeishu else { continue }
+
+            // Shared per-session throttle: one stamp covers both channels.
+            if let last = lastAlertAt[id], now.timeIntervalSince(last) < soundThrottle {
                 continue
             }
-            lastSoundAt[id] = now
-            Self.play(sound)
+            lastAlertAt[id] = now
+
+            if wantsSound, let soundName { Self.play(soundName) }
+            if wantsFeishu,
+               let text = FeishuMessage.text(displayName: displayName(for: session),
+                                             state: session.state,
+                                             keyword: config.feishuKeyword) {
+                sendFeishu(text: text)
+            }
         }
 
         // Forget bookkeeping for sessions that have gone away so a future
         // session reusing the id (unlikely) starts fresh, and the maps don't
         // grow unbounded.
         lastKnownState = lastKnownState.filter { live.contains($0.key) }
-        lastSoundAt = lastSoundAt.filter { live.contains($0.key) }
+        lastAlertAt = lastAlertAt.filter { live.contains($0.key) }
     }
 
     /// The macOS system sound name for a transition INTO `state`, or `nil` for
@@ -514,5 +554,96 @@ extension AppViewModel {
     /// Play `sound` once for selection feedback. `.none` is silent.
     private static func preview(_ sound: AlertSound) {
         if let name = sound.systemSoundName { play(name) }
+    }
+
+    /// Feishu master toggle, backed by `config.feishuEnabled` (persisted).
+    var feishuEnabled: Bool {
+        get { config.feishuEnabled }
+        set { var c = config; c.feishuEnabled = newValue; config = c }
+    }
+
+
+}
+
+// MARK: - Feishu notifications (send + test)
+
+extension AppViewModel {
+    /// Fire-and-forget POST of `text` to the configured webhook. Best-effort: on
+    /// completion sets `lastFeishuError` (nil on success) so Settings can warn.
+    /// Caller is responsible for all gating; this just sends.
+    func sendFeishu(text: String) {
+        let url = config.feishuWebhookURL
+        let secret = config.feishuSecret
+        guard !url.isEmpty else { return }
+        let ts = Int(Date().timeIntervalSince1970)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let result = await self.feishuClient.send(text: text, webhookURL: url, secret: secret, timestamp: ts)
+            switch result {
+            case .success:
+                self.lastFeishuError = nil
+            case .failure(let err):
+                self.lastFeishuError = Self.describe(err)
+            }
+        }
+    }
+
+    /// Seed the card's draft fields from persisted config (call at init).
+    func seedFeishuDrafts() {
+        feishuURLDraft = config.feishuWebhookURL
+        feishuSecretDraft = config.feishuSecret
+        feishuKeywordDraft = config.feishuKeyword
+    }
+
+    /// True when any draft differs from the persisted value — enables Save.
+    var feishuDraftDirty: Bool {
+        feishuURLDraft != config.feishuWebhookURL
+        || feishuSecretDraft != config.feishuSecret
+        || feishuKeywordDraft != config.feishuKeyword
+    }
+
+    /// Commit the drafts to config in one persist. After this, drafts == config
+    /// so `feishuDraftDirty` is false again.
+    func saveFeishuDrafts() {
+        var c = config
+        c.feishuWebhookURL = feishuURLDraft
+        c.feishuSecret = feishuSecretDraft
+        c.feishuKeyword = feishuKeywordDraft
+        config = c
+    }
+
+    /// Send the fixed test message using the CURRENT draft values (so the user can
+    /// verify before saving). Routed through the same keyword-append rule.
+    func sendFeishuTest() {
+        let base = "Aignals • test — notifications are working"
+        let kw = feishuKeywordDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = (kw.isEmpty || base.contains(kw)) ? base : base + " [\(kw)]"
+        sendFeishuFromDraft(text: text)
+    }
+
+    /// Like `sendFeishu(text:)` but reads the draft URL/secret instead of config —
+    /// used by the test button so unsaved edits can be verified.
+    func sendFeishuFromDraft(text: String) {
+        let url = feishuURLDraft
+        let secret = feishuSecretDraft
+        guard !url.isEmpty else { return }
+        let ts = Int(Date().timeIntervalSince1970)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let result = await self.feishuClient.send(text: text, webhookURL: url, secret: secret, timestamp: ts)
+            switch result {
+            case .success: self.lastFeishuError = nil
+            case .failure(let err): self.lastFeishuError = Self.describe(err)
+            }
+        }
+    }
+
+    /// Map a `FeishuError` to a short UI string.
+    private static func describe(_ err: FeishuError) -> String {
+        switch err {
+        case .transport(let m): return "Send failed: \(m)"
+        case .http(let s):      return "Send failed: HTTP \(s)"
+        case .feishu(let c, let m): return "Feishu rejected: \(m) (\(c))"
+        }
     }
 }

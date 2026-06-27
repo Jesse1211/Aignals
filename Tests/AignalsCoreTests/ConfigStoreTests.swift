@@ -114,4 +114,41 @@ final class ConfigStoreTests: XCTestCase {
         XCTAssertEqual(store.config.permissionSound, .ping)
         XCTAssertEqual(store.config.inputSound, .glass)
     }
+
+    func testFeishuDefaults() throws {
+        let store = ConfigStore(paths: try tmpHome())
+        XCTAssertEqual(store.config.feishuEnabled, false)
+        XCTAssertEqual(store.config.feishuWebhookURL, "")
+        XCTAssertEqual(store.config.feishuSecret, "")
+        XCTAssertEqual(store.config.feishuKeyword, "")
+    }
+
+    func testFeishuRoundtrip() throws {
+        let paths = try tmpHome()
+        let store = ConfigStore(paths: paths)
+        var c = store.config
+        c.feishuEnabled = true
+        c.feishuWebhookURL = "https://open.feishu.cn/open-apis/bot/v2/hook/abc"
+        c.feishuSecret = "s3cr3t"
+        c.feishuKeyword = "Aignals"
+        store.save(c)
+
+        let reload = ConfigStore(paths: paths)
+        XCTAssertEqual(reload.config.feishuEnabled, true)
+        XCTAssertEqual(reload.config.feishuWebhookURL, "https://open.feishu.cn/open-apis/bot/v2/hook/abc")
+        XCTAssertEqual(reload.config.feishuSecret, "s3cr3t")
+        XCTAssertEqual(reload.config.feishuKeyword, "Aignals")
+    }
+
+    func testFeishuFieldsDecodeDefaultsWhenAbsent() throws {
+        let paths = try tmpHome()
+        // Legacy config.json without any feishu keys must decode to the off defaults.
+        try Data(#"{"launchAtLogin":false,"dismissedInstallPrompt":false,"soundEnabled":true,"theme":"glassDark"}"#.utf8)
+            .write(to: paths.configFile)
+        let store = ConfigStore(paths: paths)
+        XCTAssertEqual(store.config.feishuEnabled, false)
+        XCTAssertEqual(store.config.feishuWebhookURL, "")
+        XCTAssertEqual(store.config.feishuSecret, "")
+        XCTAssertEqual(store.config.feishuKeyword, "")
+    }
 }
