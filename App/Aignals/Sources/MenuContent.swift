@@ -335,6 +335,35 @@ struct MenuContent: View {
         .padding(.vertical, 4)
     }
 
+    /// A grouped settings card: a header row (icon + title + a macOS switch) and a
+    /// body that is shown only when the switch is on. Used by Sounds and Feishu.
+    @ViewBuilder
+    private func groupCard<CardBody: View>(
+        icon: String,
+        title: String,
+        isOn: Binding<Bool>,
+        @ViewBuilder body: () -> CardBody
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 9) {
+                Text(icon).frame(width: 18, alignment: .center)
+                Text(title).fontWeight(.semibold)
+                Spacer()
+                Toggle("", isOn: isOn).toggleStyle(.switch).labelsHidden()
+            }
+            .padding(.horizontal, 10).padding(.vertical, 9)
+
+            if isOn.wrappedValue {
+                Divider().background(style.hairline)
+                VStack(alignment: .leading, spacing: 4) { body() }
+                    .padding(.horizontal, 11).padding(.top, 5).padding(.bottom, 10)
+            }
+        }
+        .background(RoundedRectangle(cornerRadius: 9).fill(Color.primary.opacity(0.04)))
+        .overlay(RoundedRectangle(cornerRadius: 9).stroke(style.hairline))
+        .padding(.horizontal, 4).padding(.vertical, 6)
+    }
+
     private func soundPicker(_ title: String, selection: Binding<AlertSound>) -> some View {
         Picker(title, selection: selection) {
             ForEach(AlertSound.allCases, id: \.self) { sound in
