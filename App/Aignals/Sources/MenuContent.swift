@@ -352,6 +352,7 @@ struct MenuContent: View {
         }
         .padding(.leading, 21)
         .padding(.trailing, 12)
+        .padding(.top, 2)
         .padding(.bottom, 4)
     }
 
@@ -408,9 +409,11 @@ struct MenuContent: View {
             withAnimation(.easeInOut(duration: 0.15)) { isExpanded.wrappedValue.toggle() }
         } label: {
             HStack(spacing: 5) {
-                Image(systemName: isExpanded.wrappedValue ? "chevron.down" : "chevron.right")
+                Image(systemName: "chevron.right")
                     .font(.system(size: 8, weight: .semibold))
                     .foregroundStyle(style.textSecondary)
+                    .rotationEffect(.degrees(isExpanded.wrappedValue ? 90 : 0))
+                    .animation(.easeInOut(duration: 0.15), value: isExpanded.wrappedValue)
                 Text(text)
                     .font(.system(size: 10, weight: .semibold)).kerning(0.6)
                     .foregroundStyle(style.textSecondary)
