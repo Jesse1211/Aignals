@@ -38,6 +38,13 @@ final class AppViewModel {
     /// short human string. Set on the main actor after each send completes.
     private(set) var lastFeishuError: String?
 
+    /// Draft values for the Feishu card's text fields. Edited in place; committed
+    /// to config only on Save (so a half-typed webhook isn't persisted). Seeded
+    /// from persisted config at init and equal to config again after a Save.
+    var feishuURLDraft: String = ""
+    var feishuSecretDraft: String = ""
+    var feishuKeywordDraft: String = ""
+
     // MARK: Sound playback bookkeeping (ADR-21/22/23/24)
 
     /// Last-known state per session id, so a change can be classified as a
@@ -90,6 +97,8 @@ final class AppViewModel {
                 self?.pruneOrphanedOverrides()
             }
         }
+
+        seedFeishuDrafts()
     }
 
     /// Load any session files already on disk so the UI reflects current state
@@ -589,13 +598,54 @@ extension AppViewModel {
         }
     }
 
-    /// Send the fixed test message (run through the keyword-append so keyword-mode
-    /// bots accept it), invoked by the Settings "Send test" button.
+    /// Seed the card's draft fields from persisted config (call at init).
+    func seedFeishuDrafts() {
+        feishuURLDraft = config.feishuWebhookURL
+        feishuSecretDraft = config.feishuSecret
+        feishuKeywordDraft = config.feishuKeyword
+    }
+
+    /// True when any draft differs from the persisted value — enables Save.
+    var feishuDraftDirty: Bool {
+        feishuURLDraft != config.feishuWebhookURL
+        || feishuSecretDraft != config.feishuSecret
+        || feishuKeywordDraft != config.feishuKeyword
+    }
+
+    /// Commit the drafts to config in one persist. After this, drafts == config
+    /// so `feishuDraftDirty` is false again.
+    func saveFeishuDrafts() {
+        var c = config
+        c.feishuWebhookURL = feishuURLDraft
+        c.feishuSecret = feishuSecretDraft
+        c.feishuKeyword = feishuKeywordDraft
+        config = c
+    }
+
+    /// Send the fixed test message using the CURRENT draft values (so the user can
+    /// verify before saving). Routed through the same keyword-append rule.
     func sendFeishuTest() {
         let base = "Aignals • test — notifications are working"
-        let kw = config.feishuKeyword.trimmingCharacters(in: .whitespacesAndNewlines)
+        let kw = feishuKeywordDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         let text = (kw.isEmpty || base.contains(kw)) ? base : base + " [\(kw)]"
-        sendFeishu(text: text)
+        sendFeishuFromDraft(text: text)
+    }
+
+    /// Like `sendFeishu(text:)` but reads the draft URL/secret instead of config —
+    /// used by the test button so unsaved edits can be verified.
+    func sendFeishuFromDraft(text: String) {
+        let url = feishuURLDraft
+        let secret = feishuSecretDraft
+        guard !url.isEmpty else { return }
+        let ts = Int(Date().timeIntervalSince1970)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let result = await self.feishuClient.send(text: text, webhookURL: url, secret: secret, timestamp: ts)
+            switch result {
+            case .success: self.lastFeishuError = nil
+            case .failure(let err): self.lastFeishuError = Self.describe(err)
+            }
+        }
     }
 
     /// Map a `FeishuError` to a short UI string.
