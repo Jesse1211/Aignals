@@ -364,6 +364,32 @@ struct MenuContent: View {
         .padding(.vertical, 4)
     }
 
+    /// A settings row with a leading icon (emoji), aligned to an 18pt column so
+    /// titles line up. Coexists with the icon-less `menuButton(_:action:)`.
+    private func menuButton(_ icon: String, _ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 9) {
+                Text(icon).frame(width: 18, alignment: .center)
+                Text(title)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+    }
+
+    /// A small uppercase section label (e.g. "General", "Customization").
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 10, weight: .semibold)).kerning(0.6)
+            .foregroundStyle(style.textSecondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 2)
+    }
+
     /// Runs an install action, showing a success alert on completion or a
     /// failure alert built from the thrown error. The two install buttons differ
     /// only in their action and message text, so this factors out the shared
