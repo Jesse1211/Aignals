@@ -41,3 +41,14 @@ Run before tagging a release. Each item must be verified on a fresh macOS 13+ ma
 - [ ] Sound OFF + Feishu ON: a transition still sends Feishu (throttle moved out of sound branch).
 - [ ] Per-session 🔇 mute suppresses BOTH sound and Feishu for that session.
 - [ ] Keyword-mode bot: with Keyword set, messages are accepted (not dropped by Feishu).
+
+## Settings redesign
+- [ ] Header shows an ⓘ; clicking the "Aignals" header opens the About window.
+- [ ] No "About Aignals…" row remains in Settings.
+- [ ] "General" and "Customization" section labels render; every row has a leading icon.
+- [ ] Sounds and Feishu render as cards with a switch; body is hidden when the switch is off.
+- [ ] Feishu: editing a field does NOT persist until Save; Save is disabled until a field changes.
+- [ ] After Save + app relaunch, the saved Feishu values are shown; Save is disabled again.
+- [ ] "Send test" uses the current (unsaved) field values.
+- [ ] Copy reads `Open ~/.aignals/`, `Launch at Login`, `Uninstall Aignals` (no ellipsis).
+- [ ] All four themes: card fill, switch, and section labels read acceptably.

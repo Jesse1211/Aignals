@@ -38,7 +38,7 @@ Clicking the icon opens a panel with **one row per session**, sorted **pinned-fi
 | **🔇 Mute button** | Silence sound alerts for just this session; click again to unmute |
 | **✕ Remove** | Shown only on **gray (disconnected)** rows — removes the dead session and its saved preferences |
 
-Rows can be **drag-reordered**; the order persists. Below the sessions, a **Settings** button expands the rest: a theme picker, Install Claude Code Hooks, Install aignals-hook CLI, Open `~/.aignals`, About, the sound controls, and Enable Launch at Login. **Quit** stays outside the fold.
+Rows can be **drag-reordered**; the order persists. Below the sessions, a **Settings** button expands two groups — **General** (Install Claude Code Hooks, Install aignals-hook CLI, Open `~/.aignals/`, Launch at Login, Uninstall) and **Customization** (Theme, a **Sounds** card, and a **Feishu** card). Clicking the dropdown's **Aignals** header (marked with an ⓘ) opens the About window. **Quit** stays outside the fold.
 
 ## Sound alerts
 
