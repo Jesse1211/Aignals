@@ -556,23 +556,7 @@ extension AppViewModel {
         set { var c = config; c.feishuEnabled = newValue; config = c }
     }
 
-    /// Feishu webhook URL (persisted). Send is gated on this being non-empty.
-    var feishuWebhookURL: String {
-        get { config.feishuWebhookURL }
-        set { var c = config; c.feishuWebhookURL = newValue; config = c }
-    }
 
-    /// Optional signing secret (persisted).
-    var feishuSecret: String {
-        get { config.feishuSecret }
-        set { var c = config; c.feishuSecret = newValue; config = c }
-    }
-
-    /// Optional keyword for keyword-mode bots (persisted).
-    var feishuKeyword: String {
-        get { config.feishuKeyword }
-        set { var c = config; c.feishuKeyword = newValue; config = c }
-    }
 }
 
 // MARK: - Feishu notifications (send + test)
