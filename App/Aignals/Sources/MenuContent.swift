@@ -24,10 +24,11 @@ struct MenuContent: View {
     @State private var tick = Date()
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
-    /// Whether the "Settings" fold is expanded (ADR-27/INV-16). Collapsed by
-    /// default so the always-visible menu is just the session list + the
-    /// "Settings" button + Quit.
-    @State private var settingsExpanded = false
+    /// Whether the General / Customization sections are expanded. Both start
+    /// expanded (the old single "Settings" fold is gone — these section headers
+    /// replace it directly). Each is an independent collapsible group.
+    @State private var generalExpanded = true
+    @State private var customizationExpanded = true
 
     /// Whether the side pop-out theme picker is showing (ADR-0809).
     @State private var themePopoverShown = false
@@ -179,17 +180,10 @@ struct MenuContent: View {
     @ViewBuilder
     private var actions: some View {
         VStack(alignment: .leading, spacing: 2) {
-            // ADR-27/INV-16: the config-class items collapse behind a single
-            // "Settings" disclosure. Always-visible = session list + this
-            // button + Quit.
-            menuButton(settingsExpanded ? "Settings ▾" : "Settings ▸") {
-                settingsExpanded.toggle()
-            }
-
-            if settingsExpanded {
-                settingsItems
-                    .padding(.leading, 8)
-            }
+            // The config-class items live under two collapsible section headers
+            // (General / Customization). No outer "Settings" fold — these groups
+            // are the top level of the actions area.
+            settingsItems
 
             Divider()
                 .padding(.vertical, 2)
@@ -200,109 +194,119 @@ struct MenuContent: View {
         .padding(.vertical, 6)
     }
 
-    /// The folded config-class items (ADR-27): General section (install/open/
-    /// launch/uninstall) and Customization section (theme + Sounds card +
-    /// Feishu card).
+    /// The config-class items, flattened: two collapsible section headers
+    /// (General / Customization) over transparent rows. Sounds/Feishu sub-items
+    /// are grouped by a faint left rule (no card background).
     @ViewBuilder
     private var settingsItems: some View {
         // ── GENERAL ──────────────────────────────────────────────
-        sectionLabel("General")
+        sectionHeader("General", isExpanded: $generalExpanded)
 
-        if !vm.claudeHooksInstalled {
-            menuButton("🔗", "Install Claude Code Hooks…") {
-                runInstall(vm.installClaudeHooks,
-                           successTitle: "Hooks installed",
-                           successInfo: "Aignals will now light up when Claude Code is working.",
-                           failureTitle: "Couldn't install hooks") { "Edit ~/.claude/settings.json manually. Error: \($0)" }
-            }
-        }
-        if !vm.hookIsLinked {
-            menuButton("⌘", "Install aignals-hook CLI…") {
-                runInstall(vm.linkHookCLI,
-                           successTitle: "Linked",
-                           successInfo: "Symlinked aignals-hook into ~/.local/bin. If that's not on your PATH, add: export PATH=\"$HOME/.local/bin:$PATH\"",
-                           failureTitle: "Couldn't link CLI") { $0.localizedDescription }
-            }
-        }
-        menuButton("📂", "Open ~/.aignals/") { vm.revealAignalsHome() }
-        if !vm.launchAtLogin {
-            menuButton("🚀", "Launch at Login") { vm.enableLaunchAtLogin() }
-        }
-        uninstallRow
-
-        // ── CUSTOMIZATION ────────────────────────────────────────
-        sectionLabel("Customization")
-
-        // Theme — existing side popover.
-        Button { themePopoverShown.toggle() } label: {
-            HStack(spacing: 9) {
-                Text("🎨").frame(width: 18, alignment: .center)
-                Text("Theme")
-                Spacer()
-                Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 12).padding(.vertical, 4)
-        .popover(isPresented: $themePopoverShown, arrowEdge: .trailing) {
-            ThemePicker(vm: vm)
-        }
-
-        // Sounds card.
-        groupCard(icon: "🔊", title: "Sounds", isOn: Binding(
-            get: { vm.soundEnabled }, set: { vm.soundEnabled = $0 }
-        )) {
-            soundPicker("🟡 Permission", selection: $vm.permissionSound)
-            soundPicker("🟢 Input", selection: $vm.inputSound)
+        if generalExpanded {
             if !vm.claudeHooksInstalled {
-                Button {
+                menuButton("🔗", "Install Claude Code Hooks…") {
                     runInstall(vm.installClaudeHooks,
                                successTitle: "Hooks installed",
                                successInfo: "Aignals will now light up when Claude Code is working.",
                                failureTitle: "Couldn't install hooks") { "Edit ~/.claude/settings.json manually. Error: \($0)" }
-                } label: {
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text("⚠︎")
-                        Text("Hooks not installed — sounds won't fire. Install…")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .font(.caption).foregroundStyle(.secondary).contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
             }
+            if !vm.hookIsLinked {
+                menuButton("⌘", "Install aignals-hook CLI…") {
+                    runInstall(vm.linkHookCLI,
+                               successTitle: "Linked",
+                               successInfo: "Symlinked aignals-hook into ~/.local/bin. If that's not on your PATH, add: export PATH=\"$HOME/.local/bin:$PATH\"",
+                               failureTitle: "Couldn't link CLI") { $0.localizedDescription }
+                }
+            }
+            menuButton("📂", "Open ~/.aignals/") { vm.revealAignalsHome() }
+            if !vm.launchAtLogin {
+                menuButton("🚀", "Launch at Login") { vm.enableLaunchAtLogin() }
+            }
+            uninstallRow
         }
 
-        // Feishu card.
-        groupCard(icon: "✈️", title: "Feishu", isOn: Binding(
-            get: { vm.feishuEnabled }, set: { vm.feishuEnabled = $0 }
-        )) {
-            feishuField("Webhook URL", text: Binding(
-                get: { vm.feishuURLDraft }, set: { vm.feishuURLDraft = $0 }))
-            feishuField("Secret (optional)", text: Binding(
-                get: { vm.feishuSecretDraft }, set: { vm.feishuSecretDraft = $0 }))
-            feishuField("Keyword (optional)", text: Binding(
-                get: { vm.feishuKeywordDraft }, set: { vm.feishuKeywordDraft = $0 }))
+        // ── CUSTOMIZATION ────────────────────────────────────────
+        sectionHeader("Customization", isExpanded: $customizationExpanded)
 
-            Text("Secret: for signature-mode bots. Keyword: only if your bot uses keyword security.")
-                .font(.caption2).foregroundStyle(.secondary)
-
-            HStack {
-                Button("Send test") { vm.sendFeishuTest() }
-                Spacer()
-                Button("Save") { vm.saveFeishuDrafts() }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!vm.feishuDraftDirty)
-            }
-            .padding(.top, 2)
-
-            if let err = vm.lastFeishuError {
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text("⚠︎")
-                    Text(err).frame(maxWidth: .infinity, alignment: .leading)
+        if customizationExpanded {
+            // Theme — existing side popover.
+            Button { themePopoverShown.toggle() } label: {
+                HStack(spacing: 9) {
+                    Text("🎨").frame(width: 18, alignment: .center)
+                    Text("Theme").font(.system(size: 13))
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.secondary)
                 }
-                .font(.caption).foregroundStyle(.red).padding(.top, 2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 12).padding(.vertical, 4)
+            .popover(isPresented: $themePopoverShown, arrowEdge: .trailing) {
+                ThemePicker(vm: vm)
+            }
+
+            // Sounds — transparent title row + left-rule grouped sub-items.
+            switchRow(icon: "🔊", title: "Sounds", isOn: Binding(
+                get: { vm.soundEnabled }, set: { vm.soundEnabled = $0 }
+            ))
+            if vm.soundEnabled {
+                groupedBlock {
+                    soundPicker("🟡 Permission", selection: $vm.permissionSound)
+                    soundPicker("🟢 Input", selection: $vm.inputSound)
+                    if !vm.claudeHooksInstalled {
+                        Button {
+                            runInstall(vm.installClaudeHooks,
+                                       successTitle: "Hooks installed",
+                                       successInfo: "Aignals will now light up when Claude Code is working.",
+                                       failureTitle: "Couldn't install hooks") { "Edit ~/.claude/settings.json manually. Error: \($0)" }
+                        } label: {
+                            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                Text("⚠︎")
+                                Text("Hooks not installed — sounds won't fire. Install…")
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .font(.caption).foregroundStyle(.secondary).contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            // Feishu — transparent title row + left-rule grouped draft fields.
+            switchRow(icon: "✈️", title: "Feishu", isOn: Binding(
+                get: { vm.feishuEnabled }, set: { vm.feishuEnabled = $0 }
+            ))
+            if vm.feishuEnabled {
+                groupedBlock {
+                    feishuField("Webhook URL", text: Binding(
+                        get: { vm.feishuURLDraft }, set: { vm.feishuURLDraft = $0 }))
+                    feishuField("Secret (optional)", text: Binding(
+                        get: { vm.feishuSecretDraft }, set: { vm.feishuSecretDraft = $0 }))
+                    feishuField("Keyword (optional)", text: Binding(
+                        get: { vm.feishuKeywordDraft }, set: { vm.feishuKeywordDraft = $0 }))
+
+                    Text("Secret: for signature-mode bots. Keyword: only if your bot uses keyword security.")
+                        .font(.caption2).foregroundStyle(.secondary)
+
+                    HStack {
+                        Button("Send test") { vm.sendFeishuTest() }
+                        Spacer()
+                        Button("Save") { vm.saveFeishuDrafts() }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(!vm.feishuDraftDirty)
+                    }
+                    .padding(.top, 2)
+
+                    if let err = vm.lastFeishuError {
+                        HStack(alignment: .firstTextBaseline, spacing: 4) {
+                            Text("⚠︎")
+                            Text(err).frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .font(.caption).foregroundStyle(.red).padding(.top, 2)
+                    }
+                }
             }
         }
     }
@@ -312,7 +316,7 @@ struct MenuContent: View {
         Button(action: runUninstall) {
             HStack(spacing: 9) {
                 Text("🗑️").frame(width: 18, alignment: .center)
-                Text("Uninstall Aignals").foregroundStyle(.red)
+                Text("Uninstall Aignals").font(.system(size: 13)).foregroundStyle(.red)
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -322,33 +326,33 @@ struct MenuContent: View {
         .padding(.horizontal, 12).padding(.vertical, 4)
     }
 
-    /// A grouped settings card: a header row (icon + title + a macOS switch) and a
-    /// body that is shown only when the switch is on. Used by Sounds and Feishu.
-    @ViewBuilder
-    private func groupCard<CardBody: View>(
-        icon: String,
-        title: String,
-        isOn: Binding<Bool>,
-        @ViewBuilder body: () -> CardBody
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 9) {
-                Text(icon).frame(width: 18, alignment: .center)
-                Text(title).fontWeight(.semibold)
-                Spacer()
-                Toggle("", isOn: isOn).toggleStyle(.switch).labelsHidden()
-            }
-            .padding(.horizontal, 10).padding(.vertical, 9)
-
-            if isOn.wrappedValue {
-                Divider().background(style.hairline)
-                VStack(alignment: .leading, spacing: 4) { body() }
-                    .padding(.horizontal, 11).padding(.top, 5).padding(.bottom, 10)
-            }
+    /// A transparent settings row with an icon, title, and a trailing macOS
+    /// switch. Same metrics as the icon `menuButton` (no card background). Used
+    /// as the Sounds / Feishu title row; its sub-items render below via
+    /// `groupedBlock`.
+    private func switchRow(icon: String, title: String, isOn: Binding<Bool>) -> some View {
+        HStack(spacing: 9) {
+            Text(icon).frame(width: 18, alignment: .center)
+            Text(title).font(.system(size: 13))
+            Spacer()
+            Toggle("", isOn: isOn).toggleStyle(.switch).labelsHidden()
         }
-        .background(RoundedRectangle(cornerRadius: 9).fill(Color.primary.opacity(0.04)))
-        .overlay(RoundedRectangle(cornerRadius: 9).stroke(style.hairline))
-        .padding(.horizontal, 4).padding(.vertical, 6)
+        .padding(.horizontal, 12).padding(.vertical, 4)
+    }
+
+    /// Groups a switch's sub-items under a faint 1px left rule (Version B) —
+    /// replaces the old filled card. The rule sits just inside the 18pt icon
+    /// column; content is inset to align under the title.
+    @ViewBuilder
+    private func groupedBlock<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        HStack(spacing: 0) {
+            Rectangle().fill(style.hairline).frame(width: 1)
+            VStack(alignment: .leading, spacing: 4) { content() }
+                .padding(.leading, 9)
+        }
+        .padding(.leading, 21)
+        .padding(.trailing, 12)
+        .padding(.bottom, 4)
     }
 
     private func soundPicker(_ title: String, selection: Binding<AlertSound>) -> some View {
@@ -357,7 +361,6 @@ struct MenuContent: View {
                 Text(sound.displayName).tag(sound)
             }
         }
-        .padding(.horizontal, 12)
         .padding(.vertical, 2)
     }
 
@@ -365,13 +368,13 @@ struct MenuContent: View {
         TextField(title, text: text)
             .textFieldStyle(.roundedBorder)
             .font(.caption)
-            .padding(.horizontal, 12)
             .padding(.vertical, 2)
     }
 
     private func menuButton(_ title: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
+                .font(.system(size: 13))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
         }
@@ -386,7 +389,7 @@ struct MenuContent: View {
         Button(action: action) {
             HStack(spacing: 9) {
                 Text(icon).frame(width: 18, alignment: .center)
-                Text(title)
+                Text(title).font(.system(size: 13))
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -397,13 +400,27 @@ struct MenuContent: View {
         .padding(.vertical, 4)
     }
 
-    /// A small uppercase section label (e.g. "General", "Customization").
-    private func sectionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 10, weight: .semibold)).kerning(0.6)
-            .foregroundStyle(style.textSecondary)
+    /// A clickable, collapsible section header (e.g. "General", "Customization").
+    /// A caret reflects expanded/collapsed; tapping toggles the bound flag with a
+    /// short slide. Keeps the uppercase eyebrow styling of the old static label.
+    private func sectionHeader(_ text: String, isExpanded: Binding<Bool>) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) { isExpanded.wrappedValue.toggle() }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: isExpanded.wrappedValue ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(style.textSecondary)
+                Text(text)
+                    .font(.system(size: 10, weight: .semibold)).kerning(0.6)
+                    .foregroundStyle(style.textSecondary)
+                Spacer()
+            }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 2)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 2)
     }
 
     /// Runs an install action, showing a success alert on completion or a
