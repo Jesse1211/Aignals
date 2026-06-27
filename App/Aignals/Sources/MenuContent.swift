@@ -200,17 +200,44 @@ struct MenuContent: View {
         .padding(.vertical, 6)
     }
 
-    /// The folded config-class items (ADR-27): install hooks/CLI, Open
-    /// ~/.aignals, About, the global sound toggle, and the one-way Enable
-    /// Launch at Login button.
+    /// The folded config-class items (ADR-27): General section (install/open/
+    /// launch/uninstall) and Customization section (theme + Sounds card +
+    /// Feishu card).
     @ViewBuilder
     private var settingsItems: some View {
-        // Side pop-out theme picker (ADR-0809). `arrowEdge: .trailing` is a hint;
-        // SwiftUI flips it when space is tight, satisfying the "auto side"
-        // decision. The popover stays open until dismissed.
+        // ── GENERAL ──────────────────────────────────────────────
+        sectionLabel("General")
+
+        if !vm.claudeHooksInstalled {
+            menuButton("🔗", "Install Claude Code Hooks…") {
+                runInstall(vm.installClaudeHooks,
+                           successTitle: "Hooks installed",
+                           successInfo: "Aignals will now light up when Claude Code is working.",
+                           failureTitle: "Couldn't install hooks") { "Edit ~/.claude/settings.json manually. Error: \($0)" }
+            }
+        }
+        if !vm.hookIsLinked {
+            menuButton("⌘", "Install aignals-hook CLI…") {
+                runInstall(vm.linkHookCLI,
+                           successTitle: "Linked",
+                           successInfo: "Symlinked aignals-hook into ~/.local/bin. If that's not on your PATH, add: export PATH=\"$HOME/.local/bin:$PATH\"",
+                           failureTitle: "Couldn't link CLI") { $0.localizedDescription }
+            }
+        }
+        menuButton("📂", "Open ~/.aignals/") { vm.revealAignalsHome() }
+        if !vm.launchAtLogin {
+            menuButton("🚀", "Launch at Login") { vm.enableLaunchAtLogin() }
+        }
+        uninstallRow
+
+        // ── CUSTOMIZATION ────────────────────────────────────────
+        sectionLabel("Customization")
+
+        // Theme — existing side popover.
         Button { themePopoverShown.toggle() } label: {
-            HStack {
-                Text("🎨 Theme")
+            HStack(spacing: 9) {
+                Text("🎨").frame(width: 18, alignment: .center)
+                Text("Theme")
                 Spacer()
                 Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.secondary)
             }
@@ -223,46 +250,12 @@ struct MenuContent: View {
             ThemePicker(vm: vm)
         }
 
-        if !vm.claudeHooksInstalled {
-            menuButton("Install Claude Code Hooks…") {
-                runInstall(vm.installClaudeHooks,
-                           successTitle: "Hooks installed",
-                           successInfo: "Aignals will now light up when Claude Code is working.",
-                           failureTitle: "Couldn't install hooks") { "Edit ~/.claude/settings.json manually. Error: \($0)" }
-            }
-        }
-
-        if !vm.hookIsLinked {
-            menuButton("Install aignals-hook CLI…") {
-                runInstall(vm.linkHookCLI,
-                           successTitle: "Linked",
-                           successInfo: "Symlinked aignals-hook into ~/.local/bin. If that's not on your PATH, add: export PATH=\"$HOME/.local/bin:$PATH\"",
-                           failureTitle: "Couldn't link CLI") { $0.localizedDescription }
-            }
-        }
-
-        menuButton("Open ~/.aignals") { vm.revealAignalsHome() }
-
-        // Global sound toggle (ADR-20): bound to config.soundEnabled through the
-        // existing config setter.
-        Toggle("Play sounds", isOn: Binding(
-            get: { vm.soundEnabled },
-            set: { vm.soundEnabled = $0 }
-        ))
-        .toggleStyle(.checkbox)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 4)
-
-        // Per-state sound pickers (ADR-28): shown only when sound is on. Each
-        // binds to the ViewModel bridge, which previews the choice on selection.
-        if vm.soundEnabled {
+        // Sounds card.
+        groupCard(icon: "🔊", title: "Sounds", isOn: Binding(
+            get: { vm.soundEnabled }, set: { vm.soundEnabled = $0 }
+        )) {
             soundPicker("🟡 Permission", selection: $vm.permissionSound)
             soundPicker("🟢 Input", selection: $vm.inputSound)
-
-            // Sounds only fire on real state transitions, which require the
-            // Claude Code hooks. With no hooks installed the picks never play, so
-            // warn (and offer to install) — preview-on-select still works because
-            // it calls play() directly. Hidden once hooks are present.
             if !vm.claudeHooksInstalled {
                 Button {
                     runInstall(vm.installClaudeHooks,
@@ -275,70 +268,58 @@ struct MenuContent: View {
                         Text("Hooks not installed — sounds won't fire. Install…")
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .contentShape(Rectangle())
+                    .font(.caption).foregroundStyle(.secondary).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 2)
             }
         }
 
-        // Feishu (飞书/Lark) notifications: independent of sounds. Fires on the same
-        // 🟡/🟢 transitions, POSTing to a user-configured custom-bot webhook.
-        Toggle("Feishu notifications", isOn: Binding(
-            get: { vm.feishuEnabled },
-            set: { vm.feishuEnabled = $0 }
-        ))
-        .toggleStyle(.checkbox)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 4)
-
-        if vm.feishuEnabled {
+        // Feishu card.
+        groupCard(icon: "✈️", title: "Feishu", isOn: Binding(
+            get: { vm.feishuEnabled }, set: { vm.feishuEnabled = $0 }
+        )) {
             feishuField("Webhook URL", text: Binding(
-                get: { vm.feishuWebhookURL }, set: { vm.feishuWebhookURL = $0 }))
+                get: { vm.feishuURLDraft }, set: { vm.feishuURLDraft = $0 }))
             feishuField("Secret (optional)", text: Binding(
-                get: { vm.feishuSecret }, set: { vm.feishuSecret = $0 }))
+                get: { vm.feishuSecretDraft }, set: { vm.feishuSecretDraft = $0 }))
             feishuField("Keyword (optional)", text: Binding(
-                get: { vm.feishuKeyword }, set: { vm.feishuKeyword = $0 }))
+                get: { vm.feishuKeywordDraft }, set: { vm.feishuKeywordDraft = $0 }))
 
             Text("Secret: for signature-mode bots. Keyword: only if your bot uses keyword security.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 12)
+                .font(.caption2).foregroundStyle(.secondary)
 
-            menuButton("Send test message") { vm.sendFeishuTest() }
+            HStack {
+                Button("Send test") { vm.sendFeishuTest() }
+                Spacer()
+                Button("Save") { vm.saveFeishuDrafts() }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!vm.feishuDraftDirty)
+            }
+            .padding(.top, 2)
 
             if let err = vm.lastFeishuError {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text("⚠︎")
                     Text(err).frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .font(.caption)
-                .foregroundStyle(.red)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 2)
+                .font(.caption).foregroundStyle(.red).padding(.top, 2)
             }
         }
+    }
 
-        // One-way Enable Launch at Login (ADR-26/INV-15): shown only while off;
-        // tapping enables it and bumps the observable version so it hides now.
-        if !vm.launchAtLogin {
-            menuButton("Enable Launch at Login") { vm.enableLaunchAtLogin() }
-        }
-
-        // DESTRUCTIVE: full uninstall. Placed last in the Settings fold and
-        // styled red. Confirm-then-act flow lives in `runUninstall`.
+    /// The destructive uninstall row (red, no ellipsis), placed in General.
+    private var uninstallRow: some View {
         Button(action: runUninstall) {
-            Text("Uninstall Aignals…")
-                .foregroundStyle(.red)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
+            HStack(spacing: 9) {
+                Text("🗑️").frame(width: 18, alignment: .center)
+                Text("Uninstall Aignals").foregroundStyle(.red)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 12).padding(.vertical, 4)
     }
 
     /// A grouped settings card: a header row (icon + title + a macOS switch) and a
