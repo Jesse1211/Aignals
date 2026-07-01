@@ -74,6 +74,20 @@ Three new single-purpose units plus UI wiring. None of them reference session st
 - Sort by saved time, newest first.
 - Empty state: "No saved quotes yet."
 
+## Feishu Push Hook (architecture only — no UI)
+
+Provide a reusable method that pushes today's quote to the already-configured
+Feishu bot, reusing the same tokens as session notifications. This is
+**architecture only** — there is NO button and NO current call site. It exists
+so a future stopwatch `start` can call it (the user's intended trigger).
+
+- `AppViewModel.sendCurrentQuoteToFeishu()` delegates to the existing
+  `sendFeishu(text:)`.
+- Gated: no-op unless `config.feishuEnabled` and `feishuWebhookURL` is non-empty,
+  AND `currentQuote != nil` (never sends the `—` placeholder).
+- No new Core code; reuses `FeishuClient` and the existing `feishu*` config.
+- No Settings change, no dropdown button.
+
 ## Persistence Format
 
 `~/.aignals/quotes.json`:
