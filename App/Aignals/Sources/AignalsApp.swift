@@ -37,5 +37,11 @@ struct AignalsApp: App {
         }
         .windowResizability(.contentSize)
         .defaultSize(width: 540, height: 440)
+
+        Window("Saved Quotes", id: "projector") {
+            ProjectorView(vm: vm)
+        }
+        .windowResizability(.contentSize)
+        .defaultSize(width: 360, height: 420)
     }
 }

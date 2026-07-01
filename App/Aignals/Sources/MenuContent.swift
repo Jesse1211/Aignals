@@ -29,6 +29,8 @@ struct MenuContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            quoteRow
+            Divider().background(style.hairline)
             header
             Divider().background(style.hairline)
 
@@ -60,6 +62,44 @@ struct MenuContent: View {
         } else {
             style.panelColor
         }
+    }
+
+    // MARK: - Quote row
+
+    @ViewBuilder
+    private var quoteRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(vm.currentQuote?.text ?? "—")
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+            if let author = vm.currentQuote?.author, !author.isEmpty {
+                Text("— \(author)").font(.caption).foregroundStyle(style.textSecondary)
+            }
+            HStack(spacing: 12) {
+                Button { vm.refreshQuote(endpoint: .random) } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .disabled(vm.isFetchingQuote)
+                .help("Refresh quote")
+
+                Button { vm.saveCurrentQuote() } label: {
+                    Image(systemName: vm.isCurrentQuoteSaved() ? "heart.fill" : "heart")
+                }
+                .disabled(vm.currentQuote == nil)
+                .help("Save quote")
+
+                Button { openWindow(id: "projector") } label: {
+                    Image(systemName: "book")
+                }
+                .help("Saved quotes")
+
+                if vm.isFetchingQuote { ProgressView().controlSize(.small) }
+                Spacer()
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
 
     // MARK: - Brand header
