@@ -29,6 +29,18 @@ final class AppViewModel {
     /// icons or the Launch button until the menu is reopened.
     private var configVersion = 0
 
+    private let quoteProvider = QuoteProvider()
+    private let quoteStore: QuoteStore
+    private let quoteCalendar = Calendar.current
+
+    var currentQuote: Quote?
+    var isFetchingQuote = false
+    private(set) var lastQuoteFetch: Date?
+
+    /// Bumped on every saved-quote mutation so SwiftUI re-derives `savedQuotes`
+    /// (`QuoteStore` is not `@Observable` — same pattern as `overridesVersion`).
+    private var quotesVersion = 0
+
     private let configStore: ConfigStore
     private let watcher: FSEventsWatcher
     private let sweeper: PIDSweeper
@@ -75,6 +87,7 @@ final class AppViewModel {
         self.store = store
         self.configStore = ConfigStore(paths: paths)
         self.overrideStore = OverrideStore(paths: paths)
+        self.quoteStore = QuoteStore(paths: paths)
         self.watcher = FSEventsWatcher(directory: paths.sessionsDirectory, store: store)
         self.sweeper = PIDSweeper(sessionsDirectory: paths.sessionsDirectory, store: store)
 
@@ -105,6 +118,7 @@ final class AppViewModel {
         }
 
         seedFeishuDrafts()
+        fetchQuoteIfNeeded()
     }
 
     /// Load any session files already on disk so the UI reflects current state
@@ -647,5 +661,67 @@ extension AppViewModel {
         case .http(let s):      return "Send failed: HTTP \(s)"
         case .feishu(let c, let m): return "Feishu rejected: \(m) (\(c))"
         }
+    }
+}
+
+// MARK: - Quote coordination (fetch / refresh / save)
+
+extension AppViewModel {
+    /// Fetch on first launch or after crossing local midnight since the last fetch.
+    func fetchQuoteIfNeeded(now: Date = Date()) {
+        if let last = lastQuoteFetch,
+           !MidnightRefresher.didCrossMidnight(from: last, to: now, calendar: quoteCalendar) {
+            return
+        }
+        refreshQuote(endpoint: .today)
+    }
+
+    /// Fetch a quote (⟳ uses `.random`, launch/midnight use `.today`). On failure
+    /// leaves `currentQuote` = nil so the UI shows `—`.
+    func refreshQuote(endpoint: QuoteEndpoint = .random) {
+        isFetchingQuote = true
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let q = await self.quoteProvider.fetchQuote(endpoint)
+            self.currentQuote = q
+            self.lastQuoteFetch = Date()
+            self.isFetchingQuote = false
+        }
+    }
+
+    /// Truncated text for the menubar label; nil when the user disabled the quote.
+    var menubarQuoteText: String? {
+        guard config.quoteEnabled else { return nil }
+        let full = currentQuote?.text ?? "—"
+        return QuoteTruncation.truncate(full, to: config.quoteTruncation)
+    }
+
+    var quoteEnabled: Bool {
+        get { config.quoteEnabled }
+        set { var c = config; c.quoteEnabled = newValue; config = c }
+    }
+    var quoteTruncation: Int {
+        get { config.quoteTruncation }
+        set { var c = config; c.quoteTruncation = max(1, newValue); config = c }
+    }
+
+    // Saved-quote passthrough to QuoteStore.
+    var savedQuotes: [SavedQuote] {
+        _ = quotesVersion
+        return quoteStore.saved
+    }
+    func isCurrentQuoteSaved() -> Bool {
+        _ = quotesVersion
+        guard let q = currentQuote else { return false }
+        return quoteStore.isSaved(q.text)
+    }
+    func saveCurrentQuote() {
+        guard let q = currentQuote else { return }
+        quoteStore.save(q, at: Date())
+        quotesVersion &+= 1
+    }
+    func deleteSavedQuote(text: String) {
+        quoteStore.delete(text: text)
+        quotesVersion &+= 1
     }
 }
