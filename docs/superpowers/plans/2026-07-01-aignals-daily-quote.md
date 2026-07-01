@@ -885,6 +885,10 @@ No new unit test (App target isn't unit-tested; logic pieces are already covered
     var currentQuote: Quote?
     var isFetchingQuote = false
     private(set) var lastQuoteFetch: Date?
+
+    /// Bumped on every saved-quote mutation so SwiftUI re-derives `savedQuotes`
+    /// (`QuoteStore` is not `@Observable` — same pattern as `overridesVersion`).
+    private var quotesVersion = 0
 ```
 
 Initialize `quoteStore` in `init` where `paths` is available (alongside the other `paths`-based stores):
@@ -935,18 +939,26 @@ extension AppViewModel {
         set { var c = config; c.quoteTruncation = max(1, newValue); config = c }
     }
 
-    // Saved-quote passthrough to QuoteStore.
-    var savedQuotes: [SavedQuote] { quoteStore.saved }
+    // Saved-quote passthrough to QuoteStore. `_ = quotesVersion` makes the
+    // computed property re-derive when a mutation bumps the version (QuoteStore
+    // isn't @Observable), mirroring the overridesVersion/sortedSessions pattern.
+    var savedQuotes: [SavedQuote] {
+        _ = quotesVersion
+        return quoteStore.saved
+    }
     func isCurrentQuoteSaved() -> Bool {
+        _ = quotesVersion
         guard let q = currentQuote else { return false }
         return quoteStore.isSaved(q.text)
     }
     func saveCurrentQuote() {
         guard let q = currentQuote else { return }   // no-op on “—”
         quoteStore.save(q, at: Date())
+        quotesVersion &+= 1
     }
     func deleteSavedQuote(text: String) {
         quoteStore.delete(text: text)
+        quotesVersion &+= 1
     }
 }
 ```
@@ -1069,13 +1081,11 @@ git commit -m "feat(app): menubar label shows truncated daily quote + midnight p
 - Modify: `App/Aignals/Sources/MenuContent.swift`
 
 **Interfaces:**
-- Consumes: `vm.currentQuote`, `vm.isFetchingQuote`, `vm.refreshQuote`, `vm.saveCurrentQuote`, `vm.isCurrentQuoteSaved`, `vm.savedQuotes`, `vm.deleteSavedQuote`. Uses `@State private var showProjector = false`.
+- Consumes: `vm.currentQuote`, `vm.isFetchingQuote`, `vm.refreshQuote`, `vm.saveCurrentQuote`, `vm.isCurrentQuoteSaved`. Opens the projector via `openWindow(id: "projector")` (a dedicated `Window`, NOT a `.sheet` — the `.window` MenuBarExtra panel dismisses sheets on focus loss; the project already uses a separate `Window` + `openWindow` for Settings for exactly this reason, see `SettingsView.swift:5` and `MenuContent.swift:70`).
 
-- [ ] **Step 1: Add a `quoteRow` view** — add to `MenuContent`:
+- [ ] **Step 1: Add a `quoteRow` view** — add to `MenuContent` (it already has `@Environment(\.openWindow) private var openWindow`):
 
 ```swift
-    @State private var showProjector = false
-
     @ViewBuilder
     private var quoteRow: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -1098,7 +1108,7 @@ git commit -m "feat(app): menubar label shows truncated daily quote + midnight p
                 .disabled(vm.currentQuote == nil)        // disabled on “—”
                 .help("Save quote")
 
-                Button { showProjector = true } label: {
+                Button { openWindow(id: "projector") } label: {
                     Image(systemName: "book")
                 }
                 .help("Saved quotes")
@@ -1123,12 +1133,14 @@ git commit -m "feat(app): menubar label shows truncated daily quote + midnight p
             …
 ```
 
-- [ ] **Step 3: Present the projector sheet** — add a `.sheet` modifier on the outer `VStack` (Task 12 defines `ProjectorView`):
+- [ ] **Step 3: Register the projector `Window`** — in `App/Aignals/Sources/AignalsApp.swift`, add a second `Window` scene next to the existing Settings one (Task 12 defines `ProjectorView`):
 
 ```swift
-        .sheet(isPresented: $showProjector) {
+        Window("Saved Quotes", id: "projector") {
             ProjectorView(vm: vm)
         }
+        .windowResizability(.contentSize)
+        .defaultSize(width: 360, height: 420)
 ```
 
 - [ ] **Step 4: Build to confirm it compiles** (will fail until Task 12 adds `ProjectorView` — acceptable; do Task 12 next, then build)
@@ -1136,7 +1148,7 @@ git commit -m "feat(app): menubar label shows truncated daily quote + midnight p
 Run: `xcodebuild -project App/Aignals/Aignals.xcodeproj -scheme Aignals -configuration Debug build 2>&1 | tail -5`
 Expected: build fails with `cannot find 'ProjectorView'` — proceed to Task 12.
 
-- [ ] **Step 5: Commit** (after Task 12 builds green — commit both together there). Skip committing here.
+- [ ] **Step 5: Commit** (after Task 12 builds green — commit `MenuContent.swift` + `AignalsApp.swift` + `ProjectorView.swift` together there). Skip committing here.
 
 ---
 
@@ -1160,7 +1172,7 @@ import AignalsCore
 @MainActor
 struct ProjectorView: View {
     @Bindable var vm: AppViewModel
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dismissWindow) private var dismissWindow
 
     private static let dateFormat: DateFormatter = {
         let f = DateFormatter()
@@ -1173,7 +1185,7 @@ struct ProjectorView: View {
             HStack {
                 Text("Saved Quotes").font(.headline)
                 Spacer()
-                Button("Done") { dismiss() }
+                Button("Done") { dismissWindow(id: "projector") }
             }
             .padding(12)
             Divider()
@@ -1222,8 +1234,8 @@ Expected: `** BUILD SUCCEEDED **`.
 - [ ] **Step 3: Commit** (Tasks 11 + 12)
 
 ```bash
-git add App/Aignals/Sources/MenuContent.swift App/Aignals/Sources/ProjectorView.swift
-git commit -m "feat(app): dropdown quote row (refresh/save) + projector list"
+git add App/Aignals/Sources/MenuContent.swift App/Aignals/Sources/ProjectorView.swift App/Aignals/Sources/AignalsApp.swift
+git commit -m "feat(app): dropdown quote row (refresh/save) + projector window"
 ```
 
 ---
