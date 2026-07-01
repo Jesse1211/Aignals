@@ -444,15 +444,17 @@ extension AppViewModel {
     /// (try?) — a missing symlink/dir is fine. We do NOT terminate here: the UI
     /// layer owns the confirm + final dialog + quit, so an error can surface
     /// first. `installVersion` is bumped so the menu re-derives its state.
-    func uninstall() throws {
+    func uninstall(keepSavedData: Bool = false) throws {
         try HookInstaller().uninstall(from: claudeSettingsURL)
-        // Best-effort: only remove the symlink if it actually exists.
         if FileManager.default.fileExists(atPath: hookSymlinkURL.path) {
             try? FileManager.default.removeItem(at: hookSymlinkURL)
         }
-        // Wipe the entire data dir (~/.aignals). Best-effort.
-        try? FileManager.default.removeItem(at: paths.home)
-        installVersion &+= 1 // re-derive claudeHooksInstalled / hookIsLinked now
+        // Wipe ~/.aignals, optionally preserving saved data (quotes.json, and
+        // future worklog.json). Best-effort.
+        HomeWipe.wipe(home: paths.home,
+                      keeping: keepSavedData ? ["quotes.json", "worklog.json"] : [],
+                      fileManager: .default)
+        installVersion &+= 1
     }
 }
 
