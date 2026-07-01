@@ -165,6 +165,20 @@ struct SettingsView: View {
             } footer: {
                 Text("Secret: for signature-mode bots. Keyword: only if your bot uses keyword security.")
             }
+
+            Section("Daily Quote") {
+                Toggle("Show quote in menu bar", isOn: Binding(
+                    get: { vm.quoteEnabled },
+                    set: { vm.quoteEnabled = $0 }
+                ))
+                Stepper(value: Binding(
+                    get: { vm.quoteTruncation },
+                    set: { vm.quoteTruncation = $0 }
+                ), in: 20...80, step: 5) {
+                    Text("Truncate at \(vm.quoteTruncation) characters")
+                }
+                .disabled(!vm.quoteEnabled)
+            }
         }
         .formStyle(.grouped)
     }
