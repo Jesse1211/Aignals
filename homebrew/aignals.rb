@@ -1,6 +1,6 @@
 cask "aignals" do
-  version "0.3.0"
-  sha256 "REPLACE-WITH-RELEASE-CHECKSUM"
+  version "0.5.0"
+  sha256 "REPLACE-WITH-RELEASE-CHECKSUM" # release.yml generates the real cask on the tap
 
   url "https://github.com/Jesse1211/Aignals/releases/download/v#{version}/Aignals-#{version}.dmg"
   name "Aignals"
