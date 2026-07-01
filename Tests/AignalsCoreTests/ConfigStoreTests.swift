@@ -151,4 +151,21 @@ final class ConfigStoreTests: XCTestCase {
         XCTAssertEqual(store.config.feishuSecret, "")
         XCTAssertEqual(store.config.feishuKeyword, "")
     }
+
+    func test_quote_defaults_when_absent_from_json() throws {
+        let json = Data(#"{"launchAtLogin":false,"dismissedInstallPrompt":false}"#.utf8)
+        let cfg = try JSONDecoder().decode(AignalsConfig.self, from: json)
+        XCTAssertTrue(cfg.quoteEnabled)
+        XCTAssertEqual(cfg.quoteTruncation, 40)
+    }
+
+    func test_quote_fields_roundtrip() throws {
+        var cfg = AignalsConfig.default
+        cfg.quoteEnabled = false
+        cfg.quoteTruncation = 25
+        let data = try JSONEncoder().encode(cfg)
+        let back = try JSONDecoder().decode(AignalsConfig.self, from: data)
+        XCTAssertFalse(back.quoteEnabled)
+        XCTAssertEqual(back.quoteTruncation, 25)
+    }
 }

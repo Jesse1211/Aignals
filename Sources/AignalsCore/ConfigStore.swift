@@ -25,8 +25,13 @@ public struct AignalsConfig: Equatable, Codable, Sendable {
     /// Optional keyword for keyword-mode bots; appended to messages that don't already
     /// contain it so Feishu accepts them. Empty = no keyword constraint.
     public var feishuKeyword: String
+    /// Show the daily quote text next to the menubar icon. Decodes to `true`
+    /// when absent so existing config.json shows the quote after upgrade.
+    public var quoteEnabled: Bool
+    /// Character budget for the menubar quote before truncation. Decodes to 40.
+    public var quoteTruncation: Int
 
-    public init(launchAtLogin: Bool, dismissedInstallPrompt: Bool, soundEnabled: Bool = true, theme: Theme = .glassDark, permissionSound: AlertSound = .ping, inputSound: AlertSound = .glass, feishuEnabled: Bool = false, feishuWebhookURL: String = "", feishuSecret: String = "", feishuKeyword: String = "") {
+    public init(launchAtLogin: Bool, dismissedInstallPrompt: Bool, soundEnabled: Bool = true, theme: Theme = .glassDark, permissionSound: AlertSound = .ping, inputSound: AlertSound = .glass, feishuEnabled: Bool = false, feishuWebhookURL: String = "", feishuSecret: String = "", feishuKeyword: String = "", quoteEnabled: Bool = true, quoteTruncation: Int = 40) {
         self.launchAtLogin = launchAtLogin
         self.dismissedInstallPrompt = dismissedInstallPrompt
         self.soundEnabled = soundEnabled
@@ -37,6 +42,8 @@ public struct AignalsConfig: Equatable, Codable, Sendable {
         self.feishuWebhookURL = feishuWebhookURL
         self.feishuSecret = feishuSecret
         self.feishuKeyword = feishuKeyword
+        self.quoteEnabled = quoteEnabled
+        self.quoteTruncation = quoteTruncation
     }
 
     public static let `default` = AignalsConfig(launchAtLogin: false, dismissedInstallPrompt: false, soundEnabled: true, theme: .glassDark, permissionSound: .ping, inputSound: .glass)
@@ -52,6 +59,8 @@ public struct AignalsConfig: Equatable, Codable, Sendable {
         case feishuWebhookURL
         case feishuSecret
         case feishuKeyword
+        case quoteEnabled
+        case quoteTruncation
     }
 
     public init(from decoder: Decoder) throws {
@@ -66,6 +75,8 @@ public struct AignalsConfig: Equatable, Codable, Sendable {
         self.feishuWebhookURL = try container.decodeIfPresent(String.self, forKey: .feishuWebhookURL) ?? ""
         self.feishuSecret = try container.decodeIfPresent(String.self, forKey: .feishuSecret) ?? ""
         self.feishuKeyword = try container.decodeIfPresent(String.self, forKey: .feishuKeyword) ?? ""
+        self.quoteEnabled = try container.decodeIfPresent(Bool.self, forKey: .quoteEnabled) ?? true
+        self.quoteTruncation = try container.decodeIfPresent(Int.self, forKey: .quoteTruncation) ?? 40
     }
 }
 
