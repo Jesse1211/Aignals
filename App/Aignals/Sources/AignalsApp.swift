@@ -22,13 +22,7 @@ struct AignalsApp: App {
                     }
                 }
         } label: {
-            HStack(spacing: 4) {
-                Image(nsImage: StatusIcon.image(for: vm.store.statusCounts, hasError: vm.store.hasError))
-                if let text = vm.menubarQuoteText {
-                    Text(text)
-                        .help(vm.currentQuote?.text ?? "—")
-                }
-            }
+            Image(nsImage: StatusIcon.image(for: vm.store.statusCounts, hasError: vm.store.hasError))
         }
         .menuBarExtraStyle(.window)
 

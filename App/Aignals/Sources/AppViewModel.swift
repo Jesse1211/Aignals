@@ -41,6 +41,10 @@ final class AppViewModel {
     /// (`QuoteStore` is not `@Observable` — same pattern as `overridesVersion`).
     private var quotesVersion = 0
 
+    /// Draft for the API Ninjas key field (mirrors the Feishu draft pattern):
+    /// edited in place, committed to config only on Save.
+    var quoteAPIKeyDraft: String = ""
+
     private let stopwatchEngine = StopwatchEngine()
     private let stopwatchStore: StopwatchStateStore
     private let worklogStore: WorklogStore
@@ -129,6 +133,7 @@ final class AppViewModel {
         }
 
         seedFeishuDrafts()
+        seedQuoteDraft()
         fetchQuoteIfNeeded()
         evaluateStopwatch()
     }
@@ -618,8 +623,8 @@ extension AppViewModel {
 
     /// Push today's quote to the configured Feishu bot, reusing the same tokens
     /// as session notifications. Gated: no-op when Feishu is disabled/unconfigured
-    /// or when there is no real quote (currentQuote == nil ⇒ “—”). No UI entry
-    /// point yet — this is the reusable hook a future stopwatch `start` calls.
+    /// or when there is no real quote (currentQuote == nil ⇒ “—”). Called when the
+    /// stopwatch transitions from idle to running (see `stopwatchStart`).
     func sendCurrentQuoteToFeishu() {
         guard config.feishuEnabled, !config.feishuWebhookURL.isEmpty else { return }
         guard let quote = currentQuote else { return }   // no “—”
@@ -696,36 +701,39 @@ extension AppViewModel {
            !MidnightRefresher.didCrossMidnight(from: last, to: now, calendar: quoteCalendar) {
             return
         }
-        refreshQuote(endpoint: .today)
+        refreshQuote()
     }
 
-    /// Fetch a quote (⟳ uses `.random`, launch/midnight use `.today`). On failure
-    /// leaves `currentQuote` = nil so the UI shows `—`.
-    func refreshQuote(endpoint: QuoteEndpoint = .random) {
+    /// Fetch a quote from API Ninjas using the configured key and category. On
+    /// failure leaves `currentQuote` = nil so the dropdown shows a placeholder.
+    /// No-op display when the key is empty.
+    func refreshQuote() {
+        let key = config.quoteAPIKey
+        let category = config.quoteCategory
         isFetchingQuote = true
         Task { @MainActor [weak self] in
             guard let self else { return }
-            let q = await self.quoteProvider.fetchQuote(endpoint)
+            let q = await self.quoteProvider.fetchQuote(apiKey: key, category: category)
             self.currentQuote = q
             self.lastQuoteFetch = Date()
             self.isFetchingQuote = false
         }
     }
 
-    /// Truncated text for the menubar label; nil when the user disabled the quote.
-    var menubarQuoteText: String? {
-        guard config.quoteEnabled else { return nil }
-        let full = currentQuote?.text ?? "—"
-        return QuoteTruncation.truncate(full, to: config.quoteTruncation)
+    var quoteCategory: QuoteCategory {
+        get { config.quoteCategory }
+        set { var c = config; c.quoteCategory = newValue; config = c }
     }
 
-    var quoteEnabled: Bool {
-        get { config.quoteEnabled }
-        set { var c = config; c.quoteEnabled = newValue; config = c }
-    }
-    var quoteTruncation: Int {
-        get { config.quoteTruncation }
-        set { var c = config; c.quoteTruncation = max(1, newValue); config = c }
+    /// API-key draft plumbing (mirrors Feishu). Seed on launch; Save commits.
+    func seedQuoteDraft() { quoteAPIKeyDraft = config.quoteAPIKey }
+    var quoteDraftDirty: Bool { quoteAPIKeyDraft != config.quoteAPIKey }
+    func saveQuoteDraft() {
+        var c = config
+        c.quoteAPIKey = quoteAPIKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        config = c
+        lastQuoteFetch = nil
+        refreshQuote()
     }
 
     // Saved-quote passthrough to QuoteStore.

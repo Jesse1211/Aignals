@@ -166,18 +166,26 @@ struct SettingsView: View {
                 Text("Secret: for signature-mode bots. Keyword: only if your bot uses keyword security.")
             }
 
-            Section("Daily Quote") {
-                Toggle("Show quote in menu bar", isOn: Binding(
-                    get: { vm.quoteEnabled },
-                    set: { vm.quoteEnabled = $0 }
-                ))
-                Stepper(value: Binding(
-                    get: { vm.quoteTruncation },
-                    set: { vm.quoteTruncation = $0 }
-                ), in: 20...80, step: 5) {
-                    Text("Truncate at \(vm.quoteTruncation) characters")
+            Section {
+                SecureField("API Ninjas key", text: $vm.quoteAPIKeyDraft)
+                HStack {
+                    Spacer()
+                    Button("Save") { vm.saveQuoteDraft() }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!vm.quoteDraftDirty)
                 }
-                .disabled(!vm.quoteEnabled)
+                Picker("Category", selection: Binding(
+                    get: { vm.quoteCategory },
+                    set: { vm.quoteCategory = $0 }
+                )) {
+                    ForEach(QuoteCategory.allCases, id: \.self) { cat in
+                        Text(cat.label).tag(cat)
+                    }
+                }
+            } header: {
+                Text("Daily Quote")
+            } footer: {
+                Text("Get a free key at api-ninjas.com. The quote shows in the dropdown and refreshes daily.")
             }
         }
         .formStyle(.grouped)

@@ -155,17 +155,17 @@ final class ConfigStoreTests: XCTestCase {
     func test_quote_defaults_when_absent_from_json() throws {
         let json = Data(#"{"launchAtLogin":false,"dismissedInstallPrompt":false}"#.utf8)
         let cfg = try JSONDecoder().decode(AignalsConfig.self, from: json)
-        XCTAssertTrue(cfg.quoteEnabled)
-        XCTAssertEqual(cfg.quoteTruncation, 40)
+        XCTAssertEqual(cfg.quoteAPIKey, "")
+        XCTAssertEqual(cfg.quoteCategory, .any)
     }
 
     func test_quote_fields_roundtrip() throws {
         var cfg = AignalsConfig.default
-        cfg.quoteEnabled = false
-        cfg.quoteTruncation = 25
+        cfg.quoteAPIKey = "SECRET"
+        cfg.quoteCategory = .wisdom
         let data = try JSONEncoder().encode(cfg)
         let back = try JSONDecoder().decode(AignalsConfig.self, from: data)
-        XCTAssertFalse(back.quoteEnabled)
-        XCTAssertEqual(back.quoteTruncation, 25)
+        XCTAssertEqual(back.quoteAPIKey, "SECRET")
+        XCTAssertEqual(back.quoteCategory, .wisdom)
     }
 }

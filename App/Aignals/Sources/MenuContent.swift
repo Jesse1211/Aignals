@@ -29,11 +29,11 @@ struct MenuContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            header
+            Divider().background(style.hairline)
             quoteRow
             Divider().background(style.hairline)
             stopwatchRow
-            Divider().background(style.hairline)
-            header
             Divider().background(style.hairline)
 
             if vm.store.hasError {
@@ -73,38 +73,72 @@ struct MenuContent: View {
 
     @ViewBuilder
     private var quoteRow: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(vm.currentQuote?.text ?? "—")
-                .font(.callout)
-                .fixedSize(horizontal: false, vertical: true)
-            if let author = vm.currentQuote?.author, !author.isEmpty {
-                Text("— \(author)").font(.caption).foregroundStyle(style.textSecondary)
+        HStack(alignment: .top, spacing: 10) {
+            // Accent rule down the left, quote-card style.
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill(style.textSecondary.opacity(0.55))
+                .frame(width: 3)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(quoteText)
+                    .font(quoteFont)
+                    .italic(vm.currentQuote != nil && !style.usesMonospaced)
+                    .foregroundStyle(vm.currentQuote == nil ? style.textSecondary : style.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .lineSpacing(3)
+
+                // Author on the left, understated actions on the right — one row.
+                HStack(spacing: 12) {
+                    if let author = vm.currentQuote?.author, !author.isEmpty {
+                        Text("— \(author)")
+                            .font(.caption)
+                            .foregroundStyle(style.textSecondary)
+                    }
+                    Spacer(minLength: 8)
+                    if vm.isFetchingQuote {
+                        ProgressView().controlSize(.small)
+                    }
+                    quoteIconButton("arrow.clockwise", help: "Refresh quote",
+                                    disabled: vm.isFetchingQuote) { vm.refreshQuote() }
+                    quoteIconButton(vm.isCurrentQuoteSaved() ? "heart.fill" : "heart", help: "Save quote",
+                                    disabled: vm.currentQuote == nil) { vm.saveCurrentQuote() }
+                    quoteIconButton("book", help: "Saved quotes") { openWindow(id: "projector") }
+                }
             }
-            HStack(spacing: 12) {
-                Button { vm.refreshQuote(endpoint: .random) } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .disabled(vm.isFetchingQuote)
-                .help("Refresh quote")
-
-                Button { vm.saveCurrentQuote() } label: {
-                    Image(systemName: vm.isCurrentQuoteSaved() ? "heart.fill" : "heart")
-                }
-                .disabled(vm.currentQuote == nil)
-                .help("Save quote")
-
-                Button { openWindow(id: "projector") } label: {
-                    Image(systemName: "book")
-                }
-                .help("Saved quotes")
-
-                if vm.isFetchingQuote { ProgressView().controlSize(.small) }
-                Spacer()
-            }
-            .buttonStyle(.plain)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+    }
+
+    /// A small, low-emphasis icon button for the quote card corner.
+    private func quoteIconButton(_ systemName: String, help: String,
+                                 disabled: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 13))
+                .foregroundStyle(style.textSecondary)
+                .opacity(disabled ? 0.4 : 0.75)
+                .padding(5)                    // enlarge the hit target
+                .contentShape(Rectangle())     // make the whole padded area tappable
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+        .help(help)
+    }
+
+    /// Quote font follows the theme: serif for the glass/vibrant themes, but the
+    /// Terminal theme's monospaced aesthetic (`usesMonospaced`) wins there.
+    private var quoteFont: Font {
+        .system(.title3, design: style.usesMonospaced ? .monospaced : .serif)
+    }
+
+    /// What the quote line shows: the quote, a loading hint while fetching, or a
+    /// prompt to configure the API key when there's nothing.
+    private var quoteText: String {
+        if let q = vm.currentQuote { return q.text }
+        if vm.isFetchingQuote { return "Loading…" }
+        return "Add an API Ninjas key in Settings to show a daily quote."
     }
 
     // MARK: - Stopwatch row
@@ -113,7 +147,7 @@ struct MenuContent: View {
     private var stopwatchRow: some View {
         HStack(spacing: 10) {
             Text(vm.stopwatchDisplay(now: tick))
-                .font(.system(.title3, design: .monospaced))
+                .font(.system(.body, design: .monospaced))
                 .monospacedDigit()
 
             Spacer()
@@ -131,7 +165,7 @@ struct MenuContent: View {
                 Button("End") { vm.stopwatchEnd() }
             }
             Button { openWindow(id: "stat") } label: {
-                Image(systemName: "chart.bar")
+                Image(systemName: "ellipsis")
             }
             .help("Work stats")
         }
