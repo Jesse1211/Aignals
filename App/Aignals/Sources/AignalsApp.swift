@@ -15,8 +15,20 @@ struct AignalsApp: App {
     var body: some Scene {
         MenuBarExtra {
             MenuContent(vm: vm)
+                .task {
+                    while !Task.isCancelled {
+                        vm.fetchQuoteIfNeeded()
+                        try? await Task.sleep(nanoseconds: 60 * 1_000_000_000)
+                    }
+                }
         } label: {
-            Image(nsImage: StatusIcon.image(for: vm.store.statusCounts, hasError: vm.store.hasError))
+            HStack(spacing: 4) {
+                Image(nsImage: StatusIcon.image(for: vm.store.statusCounts, hasError: vm.store.hasError))
+                if let text = vm.menubarQuoteText {
+                    Text(text)
+                        .help(vm.currentQuote?.text ?? "—")
+                }
+            }
         }
         .menuBarExtraStyle(.window)
 
