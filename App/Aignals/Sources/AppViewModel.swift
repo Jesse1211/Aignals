@@ -697,6 +697,7 @@ extension AppViewModel {
 extension AppViewModel {
     /// Fetch on first launch or after crossing local midnight since the last fetch.
     func fetchQuoteIfNeeded(now: Date = Date()) {
+        guard config.quoteEnabled else { return }       // disabled → no fetching
         if let last = lastQuoteFetch,
            !MidnightRefresher.didCrossMidnight(from: last, to: now, calendar: quoteCalendar) {
             return
@@ -706,8 +707,9 @@ extension AppViewModel {
 
     /// Fetch a quote from API Ninjas using the configured key and category. On
     /// failure leaves `currentQuote` = nil so the dropdown shows a placeholder.
-    /// No-op display when the key is empty.
+    /// No-op display when the key is empty or the quote card is disabled.
     func refreshQuote() {
+        guard config.quoteEnabled else { return }
         let key = config.quoteAPIKey
         let category = config.quoteCategory
         isFetchingQuote = true
@@ -723,6 +725,21 @@ extension AppViewModel {
     var quoteCategory: QuoteCategory {
         get { config.quoteCategory }
         set { var c = config; c.quoteCategory = newValue; config = c }
+    }
+
+    /// Master toggle for the daily-quote card. Turning it on fetches immediately;
+    /// off clears the current quote so nothing lingers when re-enabled.
+    var quoteEnabled: Bool {
+        get { config.quoteEnabled }
+        set {
+            var c = config; c.quoteEnabled = newValue; config = c
+            if newValue {
+                lastQuoteFetch = nil
+                refreshQuote()
+            } else {
+                currentQuote = nil
+            }
+        }
     }
 
     /// API-key draft plumbing (mirrors Feishu). Seed on launch; Save commits.
@@ -760,6 +777,19 @@ extension AppViewModel {
 // MARK: - Stopwatch coordination
 
 extension AppViewModel {
+    /// Master toggle for the stopwatch row. Turning it off ends any running or
+    /// paused timer (sealing today's time to the work log) so nothing keeps
+    /// counting while hidden.
+    var stopwatchEnabled: Bool {
+        get { config.stopwatchEnabled }
+        set {
+            var c = config; c.stopwatchEnabled = newValue; config = c
+            if !newValue, stopwatchStore.snapshot.phase != .idle {
+                stopwatchEnd()
+            }
+        }
+    }
+
     var stopwatchPhase: StopwatchPhase {
         _ = stopwatchVersion
         return stopwatchStore.snapshot.phase

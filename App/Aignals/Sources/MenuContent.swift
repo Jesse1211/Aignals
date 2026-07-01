@@ -31,10 +31,14 @@ struct MenuContent: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             Divider().background(style.hairline)
-            quoteRow
-            Divider().background(style.hairline)
-            stopwatchRow
-            Divider().background(style.hairline)
+            if vm.quoteEnabled {
+                quoteRow
+                Divider().background(style.hairline)
+            }
+            if vm.stopwatchEnabled {
+                stopwatchRow
+                Divider().background(style.hairline)
+            }
 
             if vm.store.hasError {
                 errorBanner

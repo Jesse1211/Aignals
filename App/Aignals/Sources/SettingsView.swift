@@ -167,12 +167,15 @@ struct SettingsView: View {
             }
 
             Section {
+                Toggle("Show daily quote", isOn: Binding(
+                    get: { vm.quoteEnabled }, set: { vm.quoteEnabled = $0 }))
                 SecureField("API Ninjas key", text: $vm.quoteAPIKeyDraft)
+                    .disabled(!vm.quoteEnabled)
                 HStack {
                     Spacer()
                     Button("Save") { vm.saveQuoteDraft() }
                         .buttonStyle(.borderedProminent)
-                        .disabled(!vm.quoteDraftDirty)
+                        .disabled(!vm.quoteEnabled || !vm.quoteDraftDirty)
                 }
                 Picker("Category", selection: Binding(
                     get: { vm.quoteCategory },
@@ -182,10 +185,20 @@ struct SettingsView: View {
                         Text(cat.label).tag(cat)
                     }
                 }
+                .disabled(!vm.quoteEnabled)
             } header: {
                 Text("Daily Quote")
             } footer: {
                 Text("Get a free key at api-ninjas.com. The quote shows in the dropdown and refreshes daily.")
+            }
+
+            Section {
+                Toggle("Show work stopwatch", isOn: Binding(
+                    get: { vm.stopwatchEnabled }, set: { vm.stopwatchEnabled = $0 }))
+            } header: {
+                Text("Stopwatch")
+            } footer: {
+                Text("Track daily work time in the dropdown. Turning this off ends any running timer.")
             }
         }
         .formStyle(.grouped)

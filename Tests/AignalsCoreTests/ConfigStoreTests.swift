@@ -157,6 +157,8 @@ final class ConfigStoreTests: XCTestCase {
         let cfg = try JSONDecoder().decode(AignalsConfig.self, from: json)
         XCTAssertEqual(cfg.quoteAPIKey, "")
         XCTAssertEqual(cfg.quoteCategory, .any)
+        XCTAssertTrue(cfg.quoteEnabled)
+        XCTAssertTrue(cfg.stopwatchEnabled)
     }
 
     func test_quote_fields_roundtrip() throws {

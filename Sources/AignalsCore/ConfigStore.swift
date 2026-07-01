@@ -30,8 +30,14 @@ public struct AignalsConfig: Equatable, Codable, Sendable {
     public var quoteAPIKey: String
     /// Quote category filter (API Ninjas `categories`). `.any` = no filter.
     public var quoteCategory: QuoteCategory
+    /// Show the daily-quote card in the dropdown. Off → hidden and no fetching.
+    /// Decodes to `true` when absent.
+    public var quoteEnabled: Bool
+    /// Show the stopwatch row in the dropdown. Turning it off ends any running
+    /// timer. Decodes to `true` when absent.
+    public var stopwatchEnabled: Bool
 
-    public init(launchAtLogin: Bool, dismissedInstallPrompt: Bool, soundEnabled: Bool = true, theme: Theme = .glassDark, permissionSound: AlertSound = .ping, inputSound: AlertSound = .glass, feishuEnabled: Bool = false, feishuWebhookURL: String = "", feishuSecret: String = "", feishuKeyword: String = "", quoteAPIKey: String = "", quoteCategory: QuoteCategory = .any) {
+    public init(launchAtLogin: Bool, dismissedInstallPrompt: Bool, soundEnabled: Bool = true, theme: Theme = .glassDark, permissionSound: AlertSound = .ping, inputSound: AlertSound = .glass, feishuEnabled: Bool = false, feishuWebhookURL: String = "", feishuSecret: String = "", feishuKeyword: String = "", quoteAPIKey: String = "", quoteCategory: QuoteCategory = .any, quoteEnabled: Bool = true, stopwatchEnabled: Bool = true) {
         self.launchAtLogin = launchAtLogin
         self.dismissedInstallPrompt = dismissedInstallPrompt
         self.soundEnabled = soundEnabled
@@ -44,6 +50,8 @@ public struct AignalsConfig: Equatable, Codable, Sendable {
         self.feishuKeyword = feishuKeyword
         self.quoteAPIKey = quoteAPIKey
         self.quoteCategory = quoteCategory
+        self.quoteEnabled = quoteEnabled
+        self.stopwatchEnabled = stopwatchEnabled
     }
 
     public static let `default` = AignalsConfig(launchAtLogin: false, dismissedInstallPrompt: false, soundEnabled: true, theme: .glassDark, permissionSound: .ping, inputSound: .glass)
@@ -61,6 +69,8 @@ public struct AignalsConfig: Equatable, Codable, Sendable {
         case feishuKeyword
         case quoteAPIKey
         case quoteCategory
+        case quoteEnabled
+        case stopwatchEnabled
     }
 
     public init(from decoder: Decoder) throws {
@@ -77,6 +87,8 @@ public struct AignalsConfig: Equatable, Codable, Sendable {
         self.feishuKeyword = try container.decodeIfPresent(String.self, forKey: .feishuKeyword) ?? ""
         self.quoteAPIKey = try container.decodeIfPresent(String.self, forKey: .quoteAPIKey) ?? ""
         self.quoteCategory = try container.decodeIfPresent(QuoteCategory.self, forKey: .quoteCategory) ?? .any
+        self.quoteEnabled = try container.decodeIfPresent(Bool.self, forKey: .quoteEnabled) ?? true
+        self.stopwatchEnabled = try container.decodeIfPresent(Bool.self, forKey: .stopwatchEnabled) ?? true
     }
 }
 
