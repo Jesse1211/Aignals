@@ -63,3 +63,13 @@ Run before tagging a release. Each item must be verified on a fresh macOS 13+ ma
 - [ ] Settings → Daily Quote: toggling off hides the menubar quote text (icon only); changing truncation length shortens/lengthens it.
 - [ ] `~/.aignals/quotes.json` exists after saving and contains `{"version":1,"quotes":[…]}`.
 - [ ] Uninstall with "Keep my saved data" checked preserves `~/.aignals/quotes.json`; unchecked removes all of `~/.aignals`.
+
+## Work Stopwatch
+- [ ] Start shows a running hh:mm:ss that ticks; Stop freezes it; Resume continues; End resets to 00:00:00 and appends the session to the work log.
+- [ ] Buttons match state: idle shows only Start; running shows Stop + End; stopped shows Resume + End; Stat (chart) button always present.
+- [ ] Quit the app while running, reopen later the same day → elapsed time continued by wall clock (closed time counted).
+- [ ] Cross local midnight while running (or reopen the next day) → yesterday's segment sealed at 23:59:59, today starts at 00:00:00 stopped.
+- [ ] Multi-day gap (start, leave app closed across a full day, reopen) → only the start day is logged; fully-spanned days have no record.
+- [ ] Stat (Work Stats) window lists days newest-first with totals; expanding a day shows its segments in local time; shows "No work logged yet." before any log.
+- [ ] With Feishu configured and a quote loaded, the FIRST Start of the day posts today's quote to Feishu; Resume does NOT post.
+- [ ] `~/.aignals/worklog.json` and `~/.aignals/stopwatch-state.json` exist with the documented shapes; replacing Aignals.app (upgrade) preserves them.
