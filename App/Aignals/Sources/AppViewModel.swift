@@ -604,6 +604,17 @@ extension AppViewModel {
         }
     }
 
+    /// Push today's quote to the configured Feishu bot, reusing the same tokens
+    /// as session notifications. Gated: no-op when Feishu is disabled/unconfigured
+    /// or when there is no real quote (currentQuote == nil ⇒ “—”). No UI entry
+    /// point yet — this is the reusable hook a future stopwatch `start` calls.
+    func sendCurrentQuoteToFeishu() {
+        guard config.feishuEnabled, !config.feishuWebhookURL.isEmpty else { return }
+        guard let quote = currentQuote else { return }   // no “—”
+        let author = quote.author.isEmpty ? "" : " — \(quote.author)"
+        sendFeishu(text: "\(quote.text)\(author)")
+    }
+
     /// Seed the card's draft fields from persisted config (call at init).
     func seedFeishuDrafts() {
         feishuURLDraft = config.feishuWebhookURL
