@@ -28,6 +28,14 @@ public struct Paths: Sendable {
         home.appendingPathComponent("quotes.json")
     }
 
+    public var stopwatchStateFile: URL {
+        home.appendingPathComponent("stopwatch-state.json")
+    }
+
+    public var worklogFile: URL {
+        home.appendingPathComponent("worklog.json")
+    }
+
     public func sessionFile(id: String) -> URL {
         sessionsDirectory.appendingPathComponent("\(id).json")
     }

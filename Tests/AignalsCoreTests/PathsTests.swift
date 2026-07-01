@@ -34,6 +34,12 @@ final class PathsTests: XCTestCase {
         let paths = Paths(environment: ["AIGNALS_HOME": "/tmp/aignals-test-home"])
         XCTAssertEqual(paths.quotesFile.path, "/tmp/aignals-test-home/quotes.json")
     }
+
+    func test_stopwatch_and_worklog_paths() {
+        let p = Paths(environment: ["AIGNALS_HOME": "/tmp/aignals-sw"])
+        XCTAssertEqual(p.stopwatchStateFile.path, "/tmp/aignals-sw/stopwatch-state.json")
+        XCTAssertEqual(p.worklogFile.path, "/tmp/aignals-sw/worklog.json")
+    }
 }
 
 extension PathsTests {
