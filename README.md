@@ -135,7 +135,7 @@ Notes:
 
 ## Uninstall
 
-**Easiest:** open the menu → **Settings → Uninstall Aignals…**. It removes Aignals' Claude Code hooks (leaving your other hooks intact), the `aignals-hook` CLI link, and all data in `~/.aignals`, then asks you to drag `Aignals.app` to the Trash to finish.
+**Easiest:** open the menu → **Settings → Uninstall Aignals…**. It removes Aignals' Claude Code hooks (leaving your other hooks intact), the `aignals-hook` CLI link, and all data in `~/.aignals`, then asks you to drag `Aignals.app` to the Trash to finish. The dialog has a **"Keep my saved data (work log & quotes)"** checkbox — when checked, it preserves `~/.aignals/quotes.json` (and `worklog.json`) and removes everything else.
 
 To do it by hand instead — Aignals stores everything in two places: hook entries in `~/.claude/settings.json`, and its own data under `~/.aignals/`. To remove it completely:
 
@@ -162,7 +162,7 @@ To do it by hand instead — Aignals stores everything in two places: hook entri
    rm -f ~/.local/bin/aignals-hook
    ```
 
-4. **Remove Aignals' data** (session files, config, custom names/order):
+4. **Remove Aignals' data** (session files, `config.json`, `overrides.json` custom names/order, `quotes.json` saved quotes):
 
    ```bash
    rm -rf ~/.aignals

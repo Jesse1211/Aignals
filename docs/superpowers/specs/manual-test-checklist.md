@@ -52,3 +52,14 @@ Run before tagging a release. Each item must be verified on a fresh macOS 13+ ma
 - [ ] "Send test" uses the current (unsaved) field values.
 - [ ] Copy reads `Open ~/.aignals/`, `Launch at Login`, `Uninstall Aignals` (no ellipsis).
 - [ ] All four themes: card fill, switch, and section labels read acceptably.
+
+## Daily Quote
+- [ ] Menu bar shows the traffic-light icon plus a truncated quote; hovering shows the full text tooltip.
+- [ ] Opening the dropdown shows the full quote + author at top with refresh / save / projector buttons.
+- [ ] Refresh (⟳) fetches a new quote (spinner shows briefly).
+- [ ] Save (♥) stores the current quote; the heart fills; saving the same quote again does nothing (dedup).
+- [ ] Projector (📖) opens the Saved Quotes window; saved quotes appear newest-first with saved time; swipe-delete removes one.
+- [ ] With no network, the quote shows "—" and Save is disabled.
+- [ ] Settings → Daily Quote: toggling off hides the menubar quote text (icon only); changing truncation length shortens/lengthens it.
+- [ ] `~/.aignals/quotes.json` exists after saving and contains `{"version":1,"quotes":[…]}`.
+- [ ] Uninstall with "Keep my saved data" checked preserves `~/.aignals/quotes.json`; unchecked removes all of `~/.aignals`.
