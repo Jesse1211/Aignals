@@ -31,6 +31,8 @@ struct MenuContent: View {
         VStack(alignment: .leading, spacing: 0) {
             quoteRow
             Divider().background(style.hairline)
+            stopwatchRow
+            Divider().background(style.hairline)
             header
             Divider().background(style.hairline)
 
@@ -49,7 +51,10 @@ struct MenuContent: View {
         .environment(\.themeStyle, style)
         .foregroundStyle(style.textPrimary)
         .background(panelBackground)
-        .onReceive(timer) { tick = $0 }
+        .onReceive(timer) { newTick in
+            tick = newTick
+            vm.evaluateStopwatch(now: newTick)
+        }
         .onAppear { FirstLaunchPrompt.maybeShow(viewModel: vm) }
     }
 
@@ -98,6 +103,39 @@ struct MenuContent: View {
             }
             .buttonStyle(.plain)
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
+    // MARK: - Stopwatch row
+
+    @ViewBuilder
+    private var stopwatchRow: some View {
+        HStack(spacing: 10) {
+            Text(vm.stopwatchDisplay(now: tick))
+                .font(.system(.title3, design: .monospaced))
+                .monospacedDigit()
+
+            Spacer()
+
+            if vm.canStopwatchStart {
+                Button("Start") { vm.stopwatchStart() }
+            }
+            if vm.canStopwatchStop {
+                Button("Stop") { vm.stopwatchStop() }
+            }
+            if vm.canStopwatchResume {
+                Button("Resume") { vm.stopwatchResume() }
+            }
+            if vm.canStopwatchEnd {
+                Button("End") { vm.stopwatchEnd() }
+            }
+            Button { openWindow(id: "stat") } label: {
+                Image(systemName: "chart.bar")
+            }
+            .help("Work stats")
+        }
+        .buttonStyle(.borderless)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
     }

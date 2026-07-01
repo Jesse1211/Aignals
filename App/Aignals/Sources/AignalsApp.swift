@@ -43,5 +43,11 @@ struct AignalsApp: App {
         }
         .windowResizability(.contentSize)
         .defaultSize(width: 360, height: 420)
+
+        Window("Work Stats", id: "stat") {
+            StatView(vm: vm)
+        }
+        .windowResizability(.contentSize)
+        .defaultSize(width: 380, height: 460)
     }
 }
