@@ -41,6 +41,15 @@ final class AppViewModel {
     /// (`QuoteStore` is not `@Observable` — same pattern as `overridesVersion`).
     private var quotesVersion = 0
 
+    private let stopwatchEngine = StopwatchEngine()
+    private let stopwatchStore: StopwatchStateStore
+    private let worklogStore: WorklogStore
+    private let stopwatchCalendar = Calendar.current
+
+    /// Bumped on every stopwatch mutation so SwiftUI re-derives phase/worklog
+    /// (neither store is @Observable — same pattern as overridesVersion).
+    private var stopwatchVersion = 0
+
     private let configStore: ConfigStore
     private let watcher: FSEventsWatcher
     private let sweeper: PIDSweeper
@@ -88,6 +97,8 @@ final class AppViewModel {
         self.configStore = ConfigStore(paths: paths)
         self.overrideStore = OverrideStore(paths: paths)
         self.quoteStore = QuoteStore(paths: paths)
+        self.stopwatchStore = StopwatchStateStore(paths: paths)
+        self.worklogStore = WorklogStore(paths: paths)
         self.watcher = FSEventsWatcher(directory: paths.sessionsDirectory, store: store)
         self.sweeper = PIDSweeper(sessionsDirectory: paths.sessionsDirectory, store: store)
 
@@ -119,6 +130,7 @@ final class AppViewModel {
 
         seedFeishuDrafts()
         fetchQuoteIfNeeded()
+        evaluateStopwatch()
     }
 
     /// Load any session files already on disk so the UI reflects current state
@@ -734,5 +746,59 @@ extension AppViewModel {
     func deleteSavedQuote(text: String) {
         quoteStore.delete(text: text)
         quotesVersion &+= 1
+    }
+}
+
+// MARK: - Stopwatch coordination
+
+extension AppViewModel {
+    var stopwatchPhase: StopwatchPhase {
+        _ = stopwatchVersion
+        return stopwatchStore.snapshot.phase
+    }
+
+    func stopwatchDisplay(now: Date = Date()) -> String {
+        _ = stopwatchVersion
+        return WorktimeFormatter.clock(stopwatchEngine.displaySeconds(stopwatchStore.snapshot, now: now))
+    }
+
+    var worklogDays: [(day: String, work: WorkDay)] {
+        _ = stopwatchVersion
+        return worklogStore.daysNewestFirst
+    }
+
+    var canStopwatchStart: Bool  { StopwatchEngine.canStart(stopwatchPhase) }
+    var canStopwatchStop: Bool   { StopwatchEngine.canStop(stopwatchPhase) }
+    var canStopwatchResume: Bool { StopwatchEngine.canResume(stopwatchPhase) }
+    var canStopwatchEnd: Bool    { StopwatchEngine.canEnd(stopwatchPhase) }
+
+    private func applyStopwatch(_ result: (StopwatchSnapshot, [SealedSegment])) {
+        stopwatchStore.save(result.0)
+        worklogStore.append(result.1)
+        stopwatchVersion &+= 1
+    }
+
+    func stopwatchStart(now: Date = Date()) {
+        let wasIdle = stopwatchStore.snapshot.phase == .idle
+        applyStopwatch(stopwatchEngine.start(stopwatchStore.snapshot, now: now, calendar: stopwatchCalendar))
+        if wasIdle, stopwatchStore.snapshot.phase == .running {
+            sendCurrentQuoteToFeishu()
+        }
+    }
+    func stopwatchStop(now: Date = Date()) {
+        applyStopwatch(stopwatchEngine.stop(stopwatchStore.snapshot, now: now, calendar: stopwatchCalendar))
+    }
+    func stopwatchResume(now: Date = Date()) {
+        applyStopwatch(stopwatchEngine.resume(stopwatchStore.snapshot, now: now, calendar: stopwatchCalendar))
+    }
+    func stopwatchEnd(now: Date = Date()) {
+        applyStopwatch(stopwatchEngine.end(stopwatchStore.snapshot, now: now, calendar: stopwatchCalendar))
+    }
+
+    func evaluateStopwatch(now: Date = Date()) {
+        let result = stopwatchEngine.evaluate(stopwatchStore.snapshot, now: now, calendar: stopwatchCalendar)
+        if !result.1.isEmpty || result.0 != stopwatchStore.snapshot {
+            applyStopwatch(result)
+        }
     }
 }
