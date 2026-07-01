@@ -29,6 +29,11 @@ final class PathsTests: XCTestCase {
             "/tmp/test-aignals/sessions/abc-123.json"
         )
     }
+
+    func test_quotesFile_is_quotes_json_under_home() {
+        let paths = Paths(environment: ["AIGNALS_HOME": "/tmp/aignals-test-home"])
+        XCTAssertEqual(paths.quotesFile.path, "/tmp/aignals-test-home/quotes.json")
+    }
 }
 
 extension PathsTests {
