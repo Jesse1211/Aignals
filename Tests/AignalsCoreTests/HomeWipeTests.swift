@@ -41,4 +41,17 @@ final class HomeWipeTests: XCTestCase {
 
         XCTAssertFalse(fm.fileExists(atPath: home.appendingPathComponent("config.json").path))
     }
+
+    func test_wipe_keeps_worklog_json() throws {
+        let fm = FileManager.default
+        let home = fm.temporaryDirectory.appendingPathComponent("home-\(UUID().uuidString)")
+        try fm.createDirectory(at: home, withIntermediateDirectories: true)
+        try Data("log".utf8).write(to: home.appendingPathComponent("worklog.json"))
+        try Data("x".utf8).write(to: home.appendingPathComponent("config.json"))
+
+        HomeWipe.wipe(home: home, keeping: ["quotes.json", "worklog.json"], fileManager: fm)
+
+        XCTAssertTrue(fm.fileExists(atPath: home.appendingPathComponent("worklog.json").path))
+        XCTAssertFalse(fm.fileExists(atPath: home.appendingPathComponent("config.json").path))
+    }
 }
