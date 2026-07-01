@@ -231,6 +231,11 @@ struct SettingsView: View {
         confirm.messageText = "Uninstall Aignals?"
         confirm.informativeText = "This removes its Claude Code hooks, the aignals-hook CLI link, and all data in ~/.aignals. Aignals.app itself you'll drag to the Trash."
         confirm.alertStyle = .warning
+
+        let keep = NSButton(checkboxWithTitle: "Keep my saved data (work log & quotes)", target: nil, action: nil)
+        keep.state = .off
+        confirm.accessoryView = keep
+
         confirm.addButton(withTitle: "Cancel")
         let uninstallButton = confirm.addButton(withTitle: "Uninstall")
         if #available(macOS 11.0, *) {
@@ -238,7 +243,7 @@ struct SettingsView: View {
         }
         guard confirm.runModal() == .alertSecondButtonReturn else { return }
         do {
-            try vm.uninstall()
+            try vm.uninstall(keepSavedData: keep.state == .on)
             Self.alert("Aignals uninstalled",
                        informative: "Aignals uninstalled — drag Aignals.app to the Trash to finish.")
             NSApplication.shared.terminate(nil)
