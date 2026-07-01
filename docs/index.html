@@ -312,7 +312,13 @@ brew install --cask aignals</code></pre>
       <div class="step"><div class="t"><b>Open it.</b> <span>Drag Aignals into Applications, then <b>right-click → Open</b> the first time to bypass Gatekeeper.</span></div></div>
       <div class="step"><div class="t"><b>Wire it up.</b> <span>Accept the first-launch prompt (or <b>Settings → Install Claude Code Hooks</b>). That's it — your sessions now light up the menu bar.</span></div></div>
     </div>
-    <p class="note"><b>Uninstall</b> anytime from <b>Settings → Uninstall Aignals…</b> — it removes its hooks, CLI link, and data, then you trash the app.</p>
+    <div class="steps" style="margin-top:18px">
+      <div class="step"><div class="t"><b>Update.</b> <span>Homebrew tracks new releases automatically:</span></div></div>
+    </div>
+    <pre><code>brew update
+brew upgrade --cask aignals</code></pre>
+    <p class="note">Your settings and data in <code>~/.aignals</code> (saved quotes, work log, config) are kept across updates — only the app is replaced. Not on Homebrew? Just download the newer <code>.dmg</code> and drag it over the old app.</p>
+    <p class="note"><b>Uninstall.</b> The cleanest way is <b>Settings → Uninstall Aignals…</b> — it removes Aignals' Claude Code hooks, the CLI link, and (optionally) your data, then you trash the app. If you installed via Homebrew you can also <code>brew uninstall --zap --cask aignals</code> to remove the app + <code>~/.aignals</code>, but that can't edit <code>~/.claude/settings.json</code> — so run the in-app uninstall first (or remove Aignals' hook entries by hand) to fully clean up.</p>
   </section>
 
 </div>
