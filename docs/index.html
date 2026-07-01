@@ -241,6 +241,7 @@
       <a href="#themes" data-i18n="nav.themes">Themes</a>
       <a href="#features" data-i18n="nav.features">Features</a>
       <a href="#install" data-i18n="nav.install">Install</a>
+      <a href="#update" data-i18n="nav.update">Update</a>
       <a href="https://github.com/Jesse1211/Aignals">GitHub</a>
       <button id="langToggle" class="lang-toggle" aria-label="Switch language">中文</button>
     </div>
@@ -333,18 +334,18 @@
   <section id="install">
     <h2 data-i18n="install.h2">Install</h2>
     <p class="lead">macOS 14+. The build is self-signed (free OSS — no paid notarization), so the first open needs a right-click.</p>
-    <div class="steps">
-      <div class="step"><div class="t"><b>Get it.</b> <span>Download the <code>.dmg</code> from the latest release, or use Homebrew:</span></div></div>
-    </div>
     <pre><code>brew tap Jesse1211/aignals
 brew install --cask aignals</code></pre>
     <div class="steps" style="margin-top:18px">
+      <div class="step"><div class="t"><b>Get it.</b> <span>Download the <code>.dmg</code> from the latest release, or run the Homebrew commands above.</span></div></div>
       <div class="step"><div class="t"><b>Open it.</b> <span>Drag Aignals into Applications, then <b>right-click → Open</b> the first time to bypass Gatekeeper.</span></div></div>
       <div class="step"><div class="t"><b>Wire it up.</b> <span>Accept the first-launch prompt (or <b>Settings → Install Claude Code Hooks</b>). That's it — your sessions now light up the menu bar.</span></div></div>
     </div>
-    <div class="steps" style="margin-top:18px">
-      <div class="step"><div class="t"><b>Update.</b> <span>Homebrew tracks new releases automatically:</span></div></div>
-    </div>
+  </section>
+
+  <section id="update">
+    <h2 data-i18n="update.h2">Update &amp; uninstall</h2>
+    <p class="lead" data-i18n="update.lead">Homebrew tracks new releases automatically:</p>
     <pre><code>brew update
 brew upgrade --cask aignals</code></pre>
     <p class="note">Your settings and data in <code>~/.aignals</code> (saved quotes, work log, config) are kept across updates — only the app is replaced. Not on Homebrew? Just download the newer <code>.dmg</code> and drag it over the old app.</p>
@@ -383,6 +384,7 @@ brew upgrade --cask aignals</code></pre>
   (function () {
     var zh = {
       'nav.states': '状态', 'nav.themes': '主题', 'nav.features': '功能', 'nav.install': '安装',
+      'nav.update': '更新', 'update.h2': '更新与卸载', 'update.lead': 'Homebrew 会自动追踪新版本：',
       'hero.h1': '为你的 Vibe Coding<br>而生的三色信号灯。',
       'hero.tag': 'Aignals 是一个免费开源的 macOS 菜单栏三色信号灯，为搭配 Claude Code 的 Vibe Coding 而生。每个会话一盏彩灯——一眼看清哪些在跑、哪些等你点一下、哪些轮到你了。另含每日名言、工作秒表和飞书通知。',
       'hero.download': '↓ 下载 macOS 版', 'hero.github': '★ 在 GitHub 查看',
