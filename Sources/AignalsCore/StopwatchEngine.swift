@@ -69,19 +69,32 @@ public struct StopwatchEngine {
         return (StopwatchSnapshot.idle, sealed)
     }
 
+    /// Local-midnight rollover: at 00:00 any active timer auto-ENDs (resets to
+    /// idle) so the next day starts from zero, just as if the user had clicked
+    /// End. A running timer first seals its open segment up to the start-day's
+    /// 23:59:59; a paused (stopped) timer already sealed at pause, so it ends
+    /// with no new seal. No-op while still on the same day or when idle.
     public func evaluate(_ snap: StopwatchSnapshot, now: Date, calendar: Calendar)
         -> (StopwatchSnapshot, [SealedSegment]) {
-        guard snap.phase == .running, let start = snap.currentSegmentStart else { return (snap, []) }
-        let startDay = Self.dayKey(start, calendar: calendar)
-        guard startDay != Self.dayKey(now, calendar: calendar) else { return (snap, []) }
-        let startOfStartDay = calendar.startOfDay(for: start)
-        let cutEnd = calendar.date(byAdding: DateComponents(day: 1, second: -1), to: startOfStartDay) ?? start
-        let seconds = max(0, Int(cutEnd.timeIntervalSince(start)))
-        let seg = SealedSegment(day: startDay,
-                                segment: WorkSegment(start: start, end: cutEnd, seconds: seconds))
-        let next = StopwatchSnapshot(phase: .stopped, day: Self.dayKey(now, calendar: calendar),
-                                     accumulatedSeconds: 0, currentSegmentStart: nil)
-        return (next, [seg])
+        let today = Self.dayKey(now, calendar: calendar)
+
+        if snap.phase == .running, let start = snap.currentSegmentStart {
+            guard Self.dayKey(start, calendar: calendar) != today else { return (snap, []) }
+            let startDay = Self.dayKey(start, calendar: calendar)
+            let startOfStartDay = calendar.startOfDay(for: start)
+            let cutEnd = calendar.date(byAdding: DateComponents(day: 1, second: -1), to: startOfStartDay) ?? start
+            let seconds = max(0, Int(cutEnd.timeIntervalSince(start)))
+            let seg = SealedSegment(day: startDay,
+                                    segment: WorkSegment(start: start, end: cutEnd, seconds: seconds))
+            return (.idle, [seg])
+        }
+
+        if snap.phase == .stopped, let day = snap.day, day != today {
+            // Already sealed at pause; just auto-END so it doesn't linger.
+            return (.idle, [])
+        }
+
+        return (snap, [])
     }
 
     public static func canStart(_ p: StopwatchPhase) -> Bool { p == .idle }
