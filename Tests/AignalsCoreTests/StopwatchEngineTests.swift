@@ -65,31 +65,62 @@ final class StopwatchEngineTests: XCTestCase {
         XCTAssertEqual(eng.displaySeconds(st, now: d("2026-07-01T12:00:00-04:00")), 60)
     }
 
-    func test_evaluate_cuts_at_midnight_and_resets_today() {
+    // At midnight a running timer seals its work up to the start-day's
+    // 23:59:59, then auto-ENDs (resets fully to idle) so the next day starts
+    // from zero — same as if the user had clicked End.
+    func test_evaluate_running_at_midnight_seals_then_auto_ends() {
         let (r, _) = eng.start(.idle, now: d("2026-07-01T23:00:00-04:00"), calendar: cal)
         let (s, sealed) = eng.evaluate(r, now: d("2026-07-02T00:15:00-04:00"), calendar: cal)
         XCTAssertEqual(sealed.count, 1)
         XCTAssertEqual(sealed[0].day, "2026-07-01")
         XCTAssertEqual(sealed[0].segment.seconds, 3599)
-        XCTAssertEqual(s.phase, .stopped)
+        XCTAssertEqual(s.phase, .idle)
         XCTAssertEqual(s.accumulatedSeconds, 0)
-        XCTAssertEqual(s.day, "2026-07-02")
+        XCTAssertNil(s.day)
         XCTAssertNil(s.currentSegmentStart)
     }
 
-    func test_evaluate_multiday_span_seals_only_start_day() {
+    func test_evaluate_running_multiday_span_seals_only_start_day_then_ends() {
         let (r, _) = eng.start(.idle, now: d("2026-07-01T23:00:00-04:00"), calendar: cal)
         let (s, sealed) = eng.evaluate(r, now: d("2026-07-05T10:00:00-04:00"), calendar: cal)
         XCTAssertEqual(sealed.map(\.day), ["2026-07-01"])
         XCTAssertEqual(sealed[0].segment.seconds, 3599)
-        XCTAssertEqual(s.phase, .stopped)
-        XCTAssertEqual(s.day, "2026-07-05")
+        XCTAssertEqual(s.phase, .idle)
+        XCTAssertNil(s.day)
     }
 
-    func test_evaluate_same_day_is_noop() {
+    // A paused (stopped) timer already sealed its time to the worklog when the
+    // user hit pause, so crossing midnight auto-ENDs with NO new seal — it just
+    // resets to idle so yesterday's paused timer doesn't linger.
+    func test_evaluate_stopped_at_midnight_auto_ends_without_reseal() {
+        let (r, _) = eng.start(.idle, now: d("2026-07-01T22:00:00-04:00"), calendar: cal)
+        let (st, _) = eng.stop(r, now: d("2026-07-01T23:00:00-04:00"), calendar: cal)
+        let (s, sealed) = eng.evaluate(st, now: d("2026-07-02T00:15:00-04:00"), calendar: cal)
+        XCTAssertTrue(sealed.isEmpty)
+        XCTAssertEqual(s.phase, .idle)
+        XCTAssertEqual(s.accumulatedSeconds, 0)
+        XCTAssertNil(s.day)
+        XCTAssertNil(s.currentSegmentStart)
+    }
+
+    func test_evaluate_stopped_same_day_is_noop() {
+        let (r, _) = eng.start(.idle, now: d("2026-07-01T09:00:00-04:00"), calendar: cal)
+        let (st, _) = eng.stop(r, now: d("2026-07-01T10:00:00-04:00"), calendar: cal)
+        let (s, sealed) = eng.evaluate(st, now: d("2026-07-01T15:00:00-04:00"), calendar: cal)
+        XCTAssertEqual(s, st)
+        XCTAssertTrue(sealed.isEmpty)
+    }
+
+    func test_evaluate_running_same_day_is_noop() {
         let (r, _) = eng.start(.idle, now: d("2026-07-01T09:00:00-04:00"), calendar: cal)
         let (s, sealed) = eng.evaluate(r, now: d("2026-07-01T15:00:00-04:00"), calendar: cal)
         XCTAssertEqual(s, r)
+        XCTAssertTrue(sealed.isEmpty)
+    }
+
+    func test_evaluate_idle_is_noop() {
+        let (s, sealed) = eng.evaluate(.idle, now: d("2026-07-02T00:15:00-04:00"), calendar: cal)
+        XCTAssertEqual(s, .idle)
         XCTAssertTrue(sealed.isEmpty)
     }
 
