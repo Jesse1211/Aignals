@@ -1,0 +1,95 @@
+name: version-check
+
+# Fails a PR that changes app/library Swift code without bumping the app
+# version (CFBundleShortVersionString in Info.plist). Keeps the released
+# version, the git tag, and the shipped binary from drifting out of sync.
+#
+# Escape hatches (a PR that legitimately ships no version change):
+#   - add the "skip-version-check" label to the PR, or
+#   - put "[skip version]" anywhere in the PR title.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled, edited]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: version-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    name: version bumped
+    env:
+      PLIST: App/Aignals/Resources/Info.plist
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check version bump vs. code changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          set -euo pipefail
+
+          # --- Escape hatches -------------------------------------------------
+          if printf '%s' "$PR_TITLE" | grep -qiF '[skip version]'; then
+            echo "::notice::PR title contains [skip version] — version check skipped."
+            exit 0
+          fi
+          if printf '%s' ",$LABELS," | grep -qF ',skip-version-check,'; then
+            echo "::notice::skip-version-check label present — version check skipped."
+            exit 0
+          fi
+
+          # --- Did this PR touch shippable code? ------------------------------
+          # Compare against the merge-base so we only look at THIS PR's changes.
+          BASE=$(git merge-base "$BASE_SHA" "$HEAD_SHA")
+          CHANGED=$(git diff --name-only "$BASE" "$HEAD_SHA")
+
+          CODE_CHANGED=$(printf '%s\n' "$CHANGED" \
+            | grep -E '^(Sources/|App/Aignals/Sources/).*\.swift$' || true)
+
+          if [ -z "$CODE_CHANGED" ]; then
+            echo "::notice::No Sources/*.swift changes in this PR — version bump not required."
+            exit 0
+          fi
+
+          echo "Swift code changed in this PR:"
+          printf '  %s\n' $CODE_CHANGED
+
+          # --- Read version on both sides -------------------------------------
+          read_version() {
+            # $1 = git ref; prints CFBundleShortVersionString or empty
+            git show "$1:$PLIST" 2>/dev/null \
+              | grep -A1 'CFBundleShortVersionString' \
+              | grep '<string>' \
+              | sed -E 's/.*<string>(.*)<\/string>.*/\1/' \
+              | head -n1 || true
+          }
+
+          BASE_VER=$(read_version "$BASE")
+          HEAD_VER=$(read_version "$HEAD_SHA")
+
+          echo "Base version: '${BASE_VER:-<none>}'"
+          echo "Head version: '${HEAD_VER:-<none>}'"
+
+          if [ -z "$HEAD_VER" ]; then
+            echo "::error::Could not read CFBundleShortVersionString from $PLIST on the PR head."
+            exit 1
+          fi
+
+          if [ "$BASE_VER" = "$HEAD_VER" ]; then
+            echo "::error title=Version not bumped::This PR changes Swift code but leaves CFBundleShortVersionString at '$HEAD_VER'. Bump it in $PLIST (patch for a fix, minor for a feature), or add the 'skip-version-check' label / '[skip version]' in the PR title if no release is intended."
+            exit 1
+          fi
+
+          echo "::notice::Version bumped $BASE_VER -> $HEAD_VER ✅"
