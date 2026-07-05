@@ -58,7 +58,7 @@ jobs:
         run: |
           APP="./build/Build/Products/Release/Aignals.app"
           codesign --force --deep --sign - "$APP"
-          codesign --verify --verbose=2 "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
 
       - name: Package zip + dmg
         run: |
@@ -74,6 +74,34 @@ jobs:
           shasum -a 256 dist/Aignals-$V.zip dist/Aignals-$V.dmg \
             > dist/SHA256SUMS-$V.txt
           ls -lh dist/
+
+      - name: Sign update + generate appcast
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SPARKLE_PRIVATE_KEY:-}" ]; then
+            echo "::error::SPARKLE_PRIVATE_KEY not set — cannot sign the update."
+            exit 1
+          fi
+          # Fetch Sparkle's CLI tools (generate_appcast, sign_update).
+          SPARKLE_VER="2.6.4"
+          curl -L -o sparkle.tar.xz \
+            "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VER}/Sparkle-${SPARKLE_VER}.tar.xz"
+          mkdir -p sparkle && tar -xf sparkle.tar.xz -C sparkle
+          # generate_appcast signs each archive in dist/ and (re)writes appcast.xml.
+          # Feed URL base ensures enclosure URLs point at the GitHub Releases asset.
+          printf '%s' "$SPARKLE_PRIVATE_KEY" > sparkle_key
+          ./sparkle/bin/generate_appcast \
+            --ed-key-file sparkle_key \
+            --download-url-prefix "https://github.com/Jesse1211/Aignals/releases/download/${{ github.ref_name }}/" \
+            dist/
+          rm -f sparkle_key
+          # generate_appcast wrote dist/appcast.xml — stage it for Pages.
+          mkdir -p docs
+          cp dist/appcast.xml docs/appcast.xml
+          echo "appcast enclosure(s):"; grep -o 'url="[^"]*"' dist/appcast.xml || true
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
@@ -93,6 +121,19 @@ jobs:
             dist/SHA256SUMS-*.txt
           generate_release_notes: true
           fail_on_unmatched_files: true
+
+      - name: Publish appcast to GitHub Pages
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout main
+          cp dist/appcast.xml docs/appcast.xml
+          git add docs/appcast.xml
+          git commit -m "chore(release): update appcast for ${{ github.ref_name }}" || echo "no appcast change"
+          git push origin main
 
       # Auto-update the Homebrew tap (Jesse1211/homebrew-aignals) so
       # `brew install --cask aignals` tracks the new release with no manual
@@ -127,6 +168,7 @@ jobs:
             homepage "https://github.com/Jesse1211/Aignals"
 
             app "Aignals.app"
+            auto_updates true
 
             zap trash: [
               "~/.aignals",
