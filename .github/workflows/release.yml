@@ -93,11 +93,11 @@ jobs:
           # generate_appcast signs each archive in dist/ and (re)writes appcast.xml.
           # Feed URL base ensures enclosure URLs point at the GitHub Releases asset.
           printf '%s' "$SPARKLE_PRIVATE_KEY" > sparkle_key
+          trap 'rm -f sparkle_key' EXIT
           ./sparkle/bin/generate_appcast \
             --ed-key-file sparkle_key \
             --download-url-prefix "https://github.com/Jesse1211/Aignals/releases/download/${{ github.ref_name }}/" \
             dist/
-          rm -f sparkle_key
           # generate_appcast wrote dist/appcast.xml — stage it for Pages.
           mkdir -p docs
           cp dist/appcast.xml docs/appcast.xml
@@ -129,7 +129,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git fetch origin main
-          git checkout main
+          git checkout -B main origin/main
           cp dist/appcast.xml docs/appcast.xml
           git add docs/appcast.xml
           git commit -m "chore(release): update appcast for ${{ github.ref_name }}" || echo "no appcast change"
