@@ -11,14 +11,22 @@ import AignalsCore
 @MainActor
 struct AignalsApp: App {
     @State private var vm = AppViewModel()
+    @State private var updater = UpdaterService()
 
     var body: some Scene {
         MenuBarExtra {
-            MenuContent(vm: vm)
+            MenuContent(vm: vm, updater: updater)
                 .task {
                     while !Task.isCancelled {
                         vm.fetchQuoteIfNeeded()
                         try? await Task.sleep(nanoseconds: 60 * 1_000_000_000)
+                    }
+                }
+                .task {
+                    // Probe on launch, then every 6 hours (Sparkle's own scheduler is off).
+                    while !Task.isCancelled {
+                        updater.probe()
+                        try? await Task.sleep(nanoseconds: 6 * 60 * 60 * 1_000_000_000)
                     }
                 }
         } label: {
@@ -27,7 +35,7 @@ struct AignalsApp: App {
         .menuBarExtraStyle(.window)
 
         Window("Aignals Settings", id: "settings") {
-            SettingsView(vm: vm)
+            SettingsView(vm: vm, updater: updater)
         }
         .windowResizability(.contentSize)
         .defaultSize(width: 540, height: 440)

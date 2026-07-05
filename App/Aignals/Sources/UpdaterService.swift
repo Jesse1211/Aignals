@@ -19,7 +19,9 @@ final class UpdaterService: NSObject, SPUUpdaterDelegate {
                              userDriver: driver, delegate: nil)
         super.init()
         updater.delegate = self
-        try? updater.start()
+        do { try updater.start() } catch {
+            assertionFailure("Sparkle updater failed to start: \(error)")
+        }
     }
 
     private var currentVersion: String {

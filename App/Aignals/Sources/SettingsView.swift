@@ -9,6 +9,7 @@ import AignalsCore
 @MainActor
 struct SettingsView: View {
     @Bindable var vm: AppViewModel
+    let updater: UpdaterService
 
     @State private var selection: SettingsSection = .general
 

@@ -16,6 +16,7 @@ import AignalsCore
 @MainActor
 struct MenuContent: View {
     @Bindable var vm: AppViewModel
+    let updater: UpdaterService
 
     @Environment(\.openWindow) private var openWindow
 
