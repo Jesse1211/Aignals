@@ -8,6 +8,7 @@ cask "aignals" do
   homepage "https://github.com/Jesse1211/Aignals"
 
   app "Aignals.app"
+  auto_updates true
 
   zap trash: [
     "~/.aignals",

@@ -15,10 +15,18 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.5.1</string>
+	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
+	<key>SUEnableAutomaticChecks</key>
+	<false/>
+	<key>SUFeedURL</key>
+	<string>https://jesse1211.github.io/Aignals/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>dDp3uzKONanoHZ8999mu4CbDUC9KFRIa21dabmVWEl8=</string>
 </dict>
 </plist>

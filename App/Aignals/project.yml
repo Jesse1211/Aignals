@@ -11,6 +11,9 @@ options:
 packages:
   AignalsCore:
     path: ../../
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.6.0"
 
 targets:
   Aignals:
@@ -27,14 +30,21 @@ targets:
       path: Resources/Info.plist
       properties:
         LSUIElement: true
-        CFBundleShortVersionString: "0.4.0"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "1"
+        SUFeedURL: "https://jesse1211.github.io/Aignals/appcast.xml"
+        SUPublicEDKey: "dDp3uzKONanoHZ8999mu4CbDUC9KFRIa21dabmVWEl8="
+        SUEnableAutomaticChecks: false
+        SUAutomaticallyUpdate: false
     dependencies:
       - package: AignalsCore
         product: AignalsCore
+      - package: Sparkle
+        product: Sparkle
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.aignals.Aignals
+        MARKETING_VERSION: "0.5.1"
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "-"
         ENABLE_HARDENED_RUNTIME: NO

@@ -9,6 +9,7 @@ import AignalsCore
 @MainActor
 struct SettingsView: View {
     @Bindable var vm: AppViewModel
+    let updater: UpdaterService
 
     @State private var selection: SettingsSection = .general
 
@@ -220,6 +221,7 @@ struct SettingsView: View {
             Text("Aignals").font(.title2).bold()
             Text("Version \(appVersion)")
                 .font(.callout).foregroundStyle(style.textSecondary)
+            updateSection
             Text("Menu bar signal light for your AI coding agents.")
                 .font(.callout).foregroundStyle(style.textSecondary)
                 .multilineTextAlignment(.center)
@@ -230,6 +232,41 @@ struct SettingsView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(24)
+    }
+
+    @ViewBuilder private var updateSection: some View {
+        switch updater.state {
+        case .idle, .checking:
+            HStack(spacing: 6) { ProgressView().controlSize(.small); Text("Checking…") }
+        case .upToDate:
+            VStack(alignment: .leading, spacing: 6) {
+                Text("You're on the latest version.").foregroundStyle(.secondary)
+                Button("Check for Updates") { updater.probe() }
+            }
+        case .available(let version, .direct):
+            VStack(alignment: .leading, spacing: 6) {
+                Text("v\(version) is available.")
+                Button("Update Now") { updater.startUpdate() }
+            }
+        case .available(let version, .homebrew):
+            VStack(alignment: .leading, spacing: 6) {
+                Text("v\(version) is available. Update via Homebrew:")
+                HStack {
+                    Text("brew upgrade --cask aignals")
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                    Button("Copy") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString("brew upgrade --cask aignals", forType: .string)
+                    }
+                }
+            }
+        case .failed:
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Couldn't check for updates.").foregroundStyle(.secondary)
+                Button("Retry") { updater.probe() }
+            }
+        }
     }
 
     // MARK: - Install / uninstall actions (moved from MenuContent)
