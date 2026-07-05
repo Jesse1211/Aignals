@@ -10,15 +10,14 @@ import AignalsCore
 final class UpdaterService: NSObject, SPUUpdaterDelegate {
     private(set) var state: UpdateState = .idle
 
-    @ObservationIgnored private let updater: SPUUpdater
+    @ObservationIgnored private var updater: SPUUpdater!
     @ObservationIgnored private let driver: SPUStandardUserDriver
 
     override init() {
         driver = SPUStandardUserDriver(hostBundle: .main, delegate: nil)
-        updater = SPUUpdater(hostBundle: .main, applicationBundle: .main,
-                             userDriver: driver, delegate: nil)
         super.init()
-        updater.delegate = self
+        updater = SPUUpdater(hostBundle: .main, applicationBundle: .main,
+                             userDriver: driver, delegate: self)
         do { try updater.start() } catch {
             assertionFailure("Sparkle updater failed to start: \(error)")
         }
