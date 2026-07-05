@@ -12,7 +12,7 @@
 
 - **AignalsCore must NOT depend on Sparkle.** Only the app target links Sparkle. `UpdateChecker` is pure logic in `Sources/AignalsCore/`.
 - **Silent probe API:** use `SPUUpdater.checkForUpdateInformation()` + `SPUUpdaterDelegate` for badge/state. Use `checkForUpdates()` ONLY for the user-clicked "Update Now" install.
-- **Sparkle's own scheduler is disabled:** `SUEnableAutomaticChecks = false`, `SUAutomaticallyUpdate = false` (already set in `App/Aignals/Resources/Info.plist`). We drive periodic probes ourselves.
+- **Sparkle's own scheduler is disabled:** `SUEnableAutomaticChecks = false`, `SUAutomaticallyUpdate = false`. **These plus `SUFeedURL`/`SUPublicEDKey` are declared in `App/Aignals/project.yml`'s `info.properties`** (NOT hand-edited into `Info.plist`) — xcodegen regenerates `Info.plist` from `project.yml` on every `xcodegen generate`, so hand-edits there are wiped. We drive periodic probes ourselves.
 - **Feed URL:** `https://jesse1211.github.io/Aignals/appcast.xml` (`SUFeedURL`, already set).
 - **Public key:** `SUPublicEDKey` already set in Info.plist. Private key is GitHub Actions secret `SPARKLE_PRIVATE_KEY`.
 - **Code-signing consistency:** every release is ad-hoc signed (`codesign --sign -`), same identity across versions — do not regress, or Sparkle rejects the install.
