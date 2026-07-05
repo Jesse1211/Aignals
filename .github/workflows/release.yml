@@ -127,18 +127,29 @@ jobs:
           generate_release_notes: true
           fail_on_unmatched_files: true
 
-      - name: Publish appcast to GitHub Pages
+      # Assemble the Pages site (landing page + signed appcast) into a publish
+      # dir, then deploy to the `gh-pages` branch. We publish to gh-pages rather
+      # than main because main is PR-protected (a CI push to main is rejected).
+      # GitHub Pages must be configured to serve from `gh-pages` (root).
+      - name: Assemble Pages site
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
-          git checkout -B main origin/main
-          cp dist/appcast/appcast.xml docs/appcast.xml
-          git add docs/appcast.xml
-          git commit -m "chore(release): update appcast for ${{ github.ref_name }}" || echo "no appcast change"
-          git push origin main
+          rm -rf _site && mkdir -p _site
+          cp -R docs/. _site/
+          rm -rf _site/superpowers          # internal specs/plans — don't publish
+          cp dist/appcast/appcast.xml _site/appcast.xml
+          echo "site contents:"; ls -la _site
+
+      - name: Publish to gh-pages
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./_site
+          keep_files: true
+          commit_message: "chore(release): publish appcast + site for ${{ github.ref_name }}"
 
       # Auto-update the Homebrew tap (Jesse1211/homebrew-aignals) so
       # `brew install --cask aignals` tracks the new release with no manual
