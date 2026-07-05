@@ -32,7 +32,7 @@ targets:
         LSUIElement: true
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "1"
-        SUFeedURL: "https://jesse1211.github.io/Aignals/appcast.xml"
+        SUFeedURL: "https://jesseliu.me/Aignals/appcast.xml"
         SUPublicEDKey: "dDp3uzKONanoHZ8999mu4CbDUC9KFRIa21dabmVWEl8="
         SUEnableAutomaticChecks: false
         SUAutomaticallyUpdate: false

@@ -25,7 +25,7 @@
 	<key>SUEnableAutomaticChecks</key>
 	<false/>
 	<key>SUFeedURL</key>
-	<string>https://jesse1211.github.io/Aignals/appcast.xml</string>
+	<string>https://jesseliu.me/Aignals/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>dDp3uzKONanoHZ8999mu4CbDUC9KFRIa21dabmVWEl8=</string>
 </dict>
