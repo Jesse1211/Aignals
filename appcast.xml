@@ -1,0 +1,14 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Aignals</title>
+        <item>
+            <title>0.6.0</title>
+            <pubDate>Sun, 05 Jul 2026 08:56:26 +0000</pubDate>
+            <sparkle:version>1</sparkle:version>
+            <sparkle:shortVersionString>0.6.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/Jesse1211/Aignals/releases/download/v0.6.0/Aignals-0.6.0.dmg" length="2026848" type="application/octet-stream" sparkle:edSignature="4vFo/LiYdYKOlMvV/y9tcCN3dbHjxL3r+K6RzegnlX/vacMEJmHNOjm9hMUPjjtZd+4/w/LPLHE20NahrNNSDQ=="/>
+        </item>
+    </channel>
+</rss>
