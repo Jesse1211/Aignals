@@ -28,6 +28,12 @@ struct MenuContent: View {
     /// Concrete style tokens for the currently-selected theme (ADR-0808).
     private var style: ThemeStyle { ThemeStyle.tokens(for: vm.theme) }
 
+    /// Whether an update is available.
+    private var updateAvailable: Bool {
+        if case .available = updater.state { return true }
+        return false
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
@@ -295,6 +301,12 @@ struct MenuContent: View {
                 vm.settingsLandingSection = .general
                 openWindow(id: "settings")
             }
+            .overlay(alignment: .topTrailing) {
+                if updateAvailable {
+                    Circle().fill(.red).frame(width: 7, height: 7).offset(x: 2, y: -2)
+                }
+            }
+            .help(updateAvailable ? "Update available" : "Settings")
             menuButton("⏻", "Quit Aignals") { NSApplication.shared.terminate(nil) }
                 .keyboardShortcut("q")
         }
