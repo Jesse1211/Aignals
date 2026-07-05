@@ -94,14 +94,19 @@ jobs:
           # Feed URL base ensures enclosure URLs point at the GitHub Releases asset.
           printf '%s' "$SPARKLE_PRIVATE_KEY" > sparkle_key
           trap 'rm -f sparkle_key' EXIT
+          # Sign ONLY the .dmg (the cask ships the .dmg). generate_appcast emits an
+          # enclosure per archive it finds, so isolate the .dmg to avoid a .zip enclosure.
+          V="${{ steps.ver.outputs.version }}"
+          mkdir -p dist/appcast
+          cp "dist/Aignals-$V.dmg" dist/appcast/
           ./sparkle/bin/generate_appcast \
             --ed-key-file sparkle_key \
             --download-url-prefix "https://github.com/Jesse1211/Aignals/releases/download/${{ github.ref_name }}/" \
-            dist/
-          # generate_appcast wrote dist/appcast.xml — stage it for Pages.
+            dist/appcast/
+          # generate_appcast wrote dist/appcast/appcast.xml — stage it for Pages.
           mkdir -p docs
-          cp dist/appcast.xml docs/appcast.xml
-          echo "appcast enclosure(s):"; grep -o 'url="[^"]*"' dist/appcast.xml || true
+          cp dist/appcast/appcast.xml docs/appcast.xml
+          echo "appcast enclosure(s):"; grep -o 'url="[^"]*"' dist/appcast/appcast.xml || true
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
@@ -130,7 +135,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git fetch origin main
           git checkout -B main origin/main
-          cp dist/appcast.xml docs/appcast.xml
+          cp dist/appcast/appcast.xml docs/appcast.xml
           git add docs/appcast.xml
           git commit -m "chore(release): update appcast for ${{ github.ref_name }}" || echo "no appcast change"
           git push origin main
