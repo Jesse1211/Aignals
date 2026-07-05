@@ -11,6 +11,9 @@ options:
 packages:
   AignalsCore:
     path: ../../
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.6.0"
 
 targets:
   Aignals:
@@ -32,6 +35,8 @@ targets:
     dependencies:
       - package: AignalsCore
         product: AignalsCore
+      - package: Sparkle
+        product: Sparkle
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.aignals.Aignals
