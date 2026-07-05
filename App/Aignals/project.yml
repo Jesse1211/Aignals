@@ -44,7 +44,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.aignals.Aignals
-        MARKETING_VERSION: "0.5.1"
+        MARKETING_VERSION: "0.6.0"
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "-"
         ENABLE_HARDENED_RUNTIME: NO
