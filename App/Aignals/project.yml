@@ -30,7 +30,7 @@ targets:
       path: Resources/Info.plist
       properties:
         LSUIElement: true
-        CFBundleShortVersionString: "0.4.0"
+        CFBundleShortVersionString: "0.5.1"
         CFBundleVersion: "1"
         SUFeedURL: "https://jesse1211.github.io/Aignals/appcast.xml"
         SUPublicEDKey: "dDp3uzKONanoHZ8999mu4CbDUC9KFRIa21dabmVWEl8="
