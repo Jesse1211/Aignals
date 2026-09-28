@@ -3,12 +3,12 @@
     <channel>
         <title>Aignals</title>
         <item>
-            <title>0.6.0</title>
-            <pubDate>Sun, 05 Jul 2026 08:56:26 +0000</pubDate>
+            <title>0.6.1</title>
+            <pubDate>Mon, 28 Sep 2026 00:57:23 +0000</pubDate>
             <sparkle:version>1</sparkle:version>
-            <sparkle:shortVersionString>0.6.0</sparkle:shortVersionString>
+            <sparkle:shortVersionString>0.6.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/Jesse1211/Aignals/releases/download/v0.6.0/Aignals-0.6.0.dmg" length="2026848" type="application/octet-stream" sparkle:edSignature="4vFo/LiYdYKOlMvV/y9tcCN3dbHjxL3r+K6RzegnlX/vacMEJmHNOjm9hMUPjjtZd+4/w/LPLHE20NahrNNSDQ=="/>
+            <enclosure url="https://github.com/Jesse1211/Aignals/releases/download/v0.6.1/Aignals-0.6.1.dmg" length="2012460" type="application/octet-stream" sparkle:edSignature="Ati3xCSOpH36BuhGIwM9OvHGfa0+G/ltOgMiO9sHj325jrdyjftYQJmCTkLfcYElsLlLis8RNK6x6skNfy+tCw=="/>
         </item>
     </channel>
 </rss>
