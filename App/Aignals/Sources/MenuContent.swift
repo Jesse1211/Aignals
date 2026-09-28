@@ -58,7 +58,7 @@ struct MenuContent: View {
 
             actions
         }
-        .frame(width: 320)
+        .frame(width: 320, height: 520)
         .environment(\.themeStyle, style)
         .foregroundStyle(style.textPrimary)
         .background(panelBackground)
@@ -95,8 +95,13 @@ struct MenuContent: View {
                     .font(quoteFont)
                     .italic(vm.currentQuote != nil && !style.usesMonospaced)
                     .foregroundStyle(vm.currentQuote == nil ? style.textSecondary : style.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .multilineTextAlignment(.center)
                     .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                    // Fixed-height text area so short quotes sit vertically centred
+                    // and longer ones fill the card; the author/actions row stays
+                    // pinned below it.
+                    .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
 
                 // Author on the left, understated actions on the right — one row.
                 HStack(spacing: 12) {
@@ -140,8 +145,20 @@ struct MenuContent: View {
 
     /// Quote font follows the theme: serif for the glass/vibrant themes, but the
     /// Terminal theme's monospaced aesthetic (`usesMonospaced`) wins there.
+    ///
+    /// The text style is chosen by quote length so short quotes render large and
+    /// long ones step down to stay readable inside the fixed-width card.
     private var quoteFont: Font {
-        .system(.title3, design: style.usesMonospaced ? .monospaced : .serif)
+        let design: Font.Design = style.usesMonospaced ? .monospaced : .serif
+        let textStyle: Font.TextStyle
+        switch quoteText.count {
+        case ..<60:   textStyle = .title
+        case ..<120:  textStyle = .title2
+        case ..<200:  textStyle = .title3
+        case ..<320:  textStyle = .body
+        default:      textStyle = .callout
+        }
+        return .system(textStyle, design: design)
     }
 
     /// What the quote line shows: the quote, a loading hint while fetching, or a
@@ -265,7 +282,7 @@ struct MenuContent: View {
                     .foregroundStyle(style.textSecondary)
                     .multilineTextAlignment(.center)
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.horizontal, 12)
             .padding(.vertical, 18)
         } else {
@@ -290,7 +307,10 @@ struct MenuContent: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .frame(height: min(CGFloat(sessions.count) * 56 + 8, 320))
+            // Absorb all leftover vertical space so the overall panel height stays
+            // fixed (see `.frame(height:)` on the body); the List scrolls
+            // internally once the rows exceed the available height.
+            .frame(maxHeight: .infinity)
         }
     }
 

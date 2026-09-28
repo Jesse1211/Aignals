@@ -1,8 +1,9 @@
 name: version-check
 
 # Fails a PR that changes app/library Swift code without bumping the app
-# version (CFBundleShortVersionString in Info.plist). Keeps the released
-# version, the git tag, and the shipped binary from drifting out of sync.
+# version (MARKETING_VERSION in project.yml — Info.plist only references it via
+# $(MARKETING_VERSION)). Keeps the released version, the git tag, and the
+# shipped binary from drifting out of sync.
 #
 # Escape hatches (a PR that legitimately ships no version change):
 #   - add the "skip-version-check" label to the PR, or
@@ -25,7 +26,9 @@ jobs:
     runs-on: ubuntu-latest
     name: version bumped
     env:
-      PLIST: App/Aignals/Resources/Info.plist
+      # The real version lives in project.yml's MARKETING_VERSION; Info.plist
+      # only references it via $(MARKETING_VERSION), so it can't be read literally.
+      PROJECT_YML: App/Aignals/project.yml
     steps:
       - uses: actions/checkout@v4
         with:
@@ -68,11 +71,10 @@ jobs:
 
           # --- Read version on both sides -------------------------------------
           read_version() {
-            # $1 = git ref; prints CFBundleShortVersionString or empty
-            git show "$1:$PLIST" 2>/dev/null \
-              | grep -A1 'CFBundleShortVersionString' \
-              | grep '<string>' \
-              | sed -E 's/.*<string>(.*)<\/string>.*/\1/' \
+            # $1 = git ref; prints MARKETING_VERSION from project.yml or empty
+            git show "$1:$PROJECT_YML" 2>/dev/null \
+              | grep 'MARKETING_VERSION:' \
+              | sed -E 's/.*MARKETING_VERSION:[[:space:]]*"?([^"]*)"?.*/\1/' \
               | head -n1 || true
           }
 
@@ -83,12 +85,12 @@ jobs:
           echo "Head version: '${HEAD_VER:-<none>}'"
 
           if [ -z "$HEAD_VER" ]; then
-            echo "::error::Could not read CFBundleShortVersionString from $PLIST on the PR head."
+            echo "::error::Could not read MARKETING_VERSION from $PROJECT_YML on the PR head."
             exit 1
           fi
 
           if [ "$BASE_VER" = "$HEAD_VER" ]; then
-            echo "::error title=Version not bumped::This PR changes Swift code but leaves CFBundleShortVersionString at '$HEAD_VER'. Bump it in $PLIST (patch for a fix, minor for a feature), or add the 'skip-version-check' label / '[skip version]' in the PR title if no release is intended."
+            echo "::error title=Version not bumped::This PR changes Swift code but leaves MARKETING_VERSION at '$HEAD_VER'. Bump it in $PROJECT_YML (patch for a fix, minor for a feature), or add the 'skip-version-check' label / '[skip version]' in the PR title if no release is intended."
             exit 1
           fi
 
